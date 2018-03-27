@@ -1,7 +1,6 @@
 (function ($) {
     $(function() {
 
-
         function PopUpHide(){
             $('#mistakes_popup_panel').hide();
         }
@@ -16,6 +15,18 @@
             }
 
             if (!$(current_selection.endContainer.parentElement).parents('.field-type-text-with-summary').length) {
+                return false;
+            }
+
+            return true;
+        }
+
+        function selectionIsValid(selection_text) {
+            if (selection_text.length > Drupal.settings.textMistakesReports.maxLength) {
+                var text = 'selected text is too big';
+                var report_current = ' ( current - ' + selection_text.length ;
+                var report_max = ', max - ' + Drupal.settings.textMistakesReports.maxLength + ')';
+                alert(text + report_current + report_max);
                 return false;
             }
 
@@ -54,15 +65,18 @@
             var keyCode = e.keyCode || e.charCode || e.which;
             if (keyCode === 10 || keyCode === 13) {
                 if (e.ctrlKey) {
-                    var selected_info = getSelectionInfo();
+                    var selection_info = getSelectionInfo();
 
-                    if (selected_info['text']) {
+                    if (selection_info['text']) {
                         var current_selection = getSelection();
 
                         if (selectionHasValidParents(current_selection)) {
-                            console.log('success 7!');
-                            PopUpShow();
-                            $('#mistakes_popup_text').text(selected_info['text']);
+                            if (selectionIsValid(selection_info['text'])) {
+                                console.log('success 7!');
+                                PopUpShow();
+                                $('#mistakes_popup_text').text(selection_info['text']);
+                            }
+
                         } else {
                             alert('wrong selection!(you cant select this text)');
                         }
@@ -85,8 +99,5 @@
                 PopUpHide();
             }
         });
-
-
-
     })
 }(jQuery));

@@ -1,3 +1,5 @@
+<?php print render($temp) ?>
+
 <div id="mistakes_popup_panel">
     <div class="popup-backgroung" id="mistakes_popup_background">
         <div class="popup-content" id="mistakes_popup_content">
