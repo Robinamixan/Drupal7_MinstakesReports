@@ -1,0 +1,4 @@
+name = Sender of Text Mistakes Reports
+description = A module that add popup to field types "long text" and "long text and summary" and it can send reports about mistakes to admin email.
+core = 7.x
+package = My Modules
