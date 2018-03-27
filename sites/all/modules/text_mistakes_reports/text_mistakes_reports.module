@@ -1,0 +1,64 @@
+<?php
+
+drupal_add_js(drupal_get_path('module', 'text_mistakes_reports') . '/js/popup.js');
+
+/**
+ * Implements hook_help().
+ *
+ * Displays help and module information.
+ *
+ * @param path
+ *   Which path of the site we're using to display help
+ * @param arg
+ *   Array that holds the current path as returned from arg() function
+ * @return null|string
+ */
+function text_mistakes_reports_help($path, $arg) {
+    switch ($path) {
+        case 'admin/help#text_mistakes_reports':
+            return t('A module that add popup to field types "long text" and "long text and summary" and it can send reports about mistakes to admin email.');
+            break;
+    }
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function text_mistakes_reports_block_info() {
+    $blocks['text_mistakes_reports'] = array(
+        // The name that will appear in the block list.
+        'info' => t('Sender of Text Mistakes Reports'),
+        'status' => TRUE,
+        'region' => 'Content',
+        'visibility' => BLOCK_VISIBILITY_LISTED,
+        'pages' => 'node/*',
+    );
+    return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ *
+ * Prepares the contents of the block.
+ */
+function text_mistakes_reports_block_view($delta = '') {
+    switch ($delta) {
+        case 'text_mistakes_reports':
+            $block['content'] = array(
+                '#theme' => 'text_mistakes_reports_theme',
+                '#type' => 'markup',
+            );
+            return $block;
+    }
+}
+
+function text_mistakes_reports_theme($existing, $type, $theme, $path) {
+    return array(
+        'text_mistakes_reports_theme' => array(
+            'variables' => [],
+            'template' => 'text_mistakes_reports',
+        ),
+
+    );
+}
+
