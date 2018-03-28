@@ -9,12 +9,48 @@
             $('#mistakes_popup_panel').show();
         }
 
+        function selectionIsInAllowedField(current_selection) {
+            activeFields = Drupal.settings.textMistakesReports;
+            var correct = false;
+            $.each(activeFields, function( index, field ) {
+                if (!correct) {
+                    var htmlName = '.field-name-' + field.fieldName.split('_').join('-');
+                    var receiverEmail = field.receiverEmail;
+                    var maxLength = field.maxLength;
+                    var reportText = field.reportText;
+                    var maxReports = field.maxReports;
+
+                    console.log(htmlName);
+                    // console.log(receiverEmail);
+                    // console.log(maxLength);
+                    // console.log(reportText);
+                    // console.log(maxReports);
+
+                    if ($(current_selection.startContainer.parentElement).parents(htmlName).length) {
+                        correct = true;
+                        return true;
+                    }
+
+                    if ($(current_selection.endContainer.parentElement).parents(htmlName).length) {
+                        correct = true;
+                        return true;
+                    }
+                }
+            });
+
+            return correct;
+        }
+
         function selectionHasValidParents(current_selection) {
-            if (!$(current_selection.startContainer.parentElement).parents('.field-type-text-with-summary').length) {
+            if (!$(current_selection.startContainer.parentElement).parents('.field').length) {
                 return false;
             }
 
-            if (!$(current_selection.endContainer.parentElement).parents('.field-type-text-with-summary').length) {
+            if (!$(current_selection.endContainer.parentElement).parents('.field').length) {
+                return false;
+            }
+
+            if (!selectionIsInAllowedField(current_selection)) {
                 return false;
             }
 
@@ -22,10 +58,10 @@
         }
 
         function selectionIsValid(selection_text) {
-            if (selection_text.length > Drupal.settings.textMistakesReports.maxLength) {
+            if (selection_text.length > Drupal.settings.textMistakesReports.field_addition_text.maxLength) {
                 var text = 'selected text is too big';
                 var report_current = ' ( current - ' + selection_text.length ;
-                var report_max = ', max - ' + Drupal.settings.textMistakesReports.maxLength + ')';
+                var report_max = ', max - ' + Drupal.settings.textMistakesReports.field_addition_text.maxLength + ')';
                 alert(text + report_current + report_max);
                 return false;
             }
@@ -66,6 +102,7 @@
             if (keyCode === 10 || keyCode === 13) {
                 if (e.ctrlKey) {
                     var selection_info = getSelectionInfo();
+                    selection_info['text'] = selection_info['text'].replace(/<[^>]+>/g,'');
 
                     if (selection_info['text']) {
                         var current_selection = getSelection();

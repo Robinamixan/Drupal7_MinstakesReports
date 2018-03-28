@@ -1,4 +1,6 @@
 <?php print render($temp) ?>
+<?php var_dump(field_info_field('field_addition_text')['text_mistakes_reports_max_text_length']);?>
+<?php //var_dump(field_info_fields());?>
 
 <div id="mistakes_popup_panel">
     <div class="popup-backgroung" id="mistakes_popup_background">

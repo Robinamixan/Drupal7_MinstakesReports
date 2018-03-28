@@ -1,12 +1,7 @@
 <?php
 
 drupal_add_js(drupal_get_path('module', 'text_mistakes_reports') . '/js/popup.js');
-drupal_add_js(['textMistakesReports' => [
-        'maxLength' => variable_get('text_mistakes_reports_max_text_length', 10),
-        'maxReports' => variable_get('text_mistakes_reports_max_reports', 3),
-        'reportText' => variable_get('text_mistakes_reports_report_text', ''),
-        'receiverEmail' => variable_get('text_mistakes_reports_receiver_email',  variable_get('site_mail', ''))
-    ]], 'setting');
+drupal_add_js(['textMistakesReports' => getFieldsSettingsForPage()], 'setting');
 
 /**
  * Implements hook_help().
@@ -53,7 +48,7 @@ function text_mistakes_reports_block_view($delta = '') {
             $block['content'] = [
                 '#theme' => 'text_mistakes_reports_theme',
                 '#type' => 'markup',
-                '#temp' => "sdsd",
+                '#temp' => "sd",
             ];
             return $block;
     }
@@ -133,3 +128,103 @@ function text_mistakes_reports_form($form, &$form_state) {
     return system_settings_form($form);
 }
 
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function text_mistakes_reports_form_field_ui_field_edit_form_alter(&$form, &$form_state, $form_id) {
+    $field = $form['#field'];
+    $defaultValue = getDefaultValues($field);
+
+    if ($field['type'] === 'text_long') {
+        $form['field']['text_mistakes_reports_enabled'] = array(
+            '#type' => 'select',
+            '#title' => t('Enable "Text Mistakes Reports" Module'),
+            '#options' => [
+                '1' => 'yes',
+                '2' => 'no'
+            ],
+        );
+
+        $form['field']['text_mistakes_reports_receiver_email'] = array(
+            '#type' => 'textfield',
+            '#title' => t('Email where sending reports'),
+            '#default_value' => $defaultValue['receiver_email'],
+        );
+
+        $form['field']['text_mistakes_reports_max_text_length'] = array(
+            '#type' => 'textfield',
+            '#title' => t('Maximum size of text length'),
+            '#default_value' => $defaultValue['max_text_length'],
+            '#description' => t('The maximum size of text that can be to report'),
+            '#element_validate' => array('element_validate_integer_positive'),
+        );
+
+        $form['field']['text_mistakes_reports_report_text'] = array(
+            '#type' => 'textarea',
+            '#title' => t('Report Text'),
+            '#default_value' => $defaultValue['report_text'],
+            '#description' => t('The maximum size of text that can be to report'),
+        );
+
+        $form['field']['text_mistakes_reports_max_reports'] = array(
+            '#type' => 'textfield',
+            '#title' => t('Maximum number of reports'),
+            '#default_value' => $defaultValue['max_reports'],
+            '#description' => t('The maximum number of reports to send with one IP'),
+            '#element_validate' => array('element_validate_integer_positive'),
+        );
+    }
+}
+
+function getDefaultValues($field)
+{
+    $defaultValue = [];
+
+    $globalValueReceiverEmail = variable_get('text_mistakes_reports_email_receiver');
+    $globalValueMaxTextLength = variable_get('text_mistakes_reports_max_text_length');
+    $globalValueReportText = variable_get('text_mistakes_reports_report_text');
+    $globalValueMaxReport = variable_get('text_mistakes_reports_max_reports');
+
+    $defaultValue['receiver_email'] = !empty($field['text_mistakes_reports_receiver_email']) ?
+        $field['text_mistakes_reports_receiver_email'] :
+        $globalValueReceiverEmail;
+
+    $defaultValue['max_text_length'] = !empty($field['text_mistakes_reports_max_text_length']) ?
+        $field['text_mistakes_reports_max_text_length'] :
+        $globalValueMaxTextLength;
+
+    $defaultValue['report_text'] = !empty($field['text_mistakes_reports_report_text']) ?
+        $field['text_mistakes_reports_report_text'] :
+        $globalValueReportText;
+
+    $defaultValue['max_reports'] = !empty($field['text_mistakes_reports_max_reports']) ?
+        $field['text_mistakes_reports_max_reports'] :
+        $globalValueMaxReport;
+
+    return $defaultValue;
+}
+
+function getFieldsSettingsForPage()
+{
+    $observedFields = [];
+    $allFields = field_info_fields();
+    foreach ($allFields as $field) {
+        if (($field['type'] === 'text_long') && ($field['field_name'] !== 'comment_body')) {
+            if (key_exists('text_mistakes_reports_enabled', $field)) {
+                if ($field['text_mistakes_reports_enabled']) {
+                    $observedFields[$field['field_name']]['fieldName'] = $field['field_name'];
+                    $observedFields[$field['field_name']]['receiverEmail'] = $field['text_mistakes_reports_receiver_email'];
+                    $observedFields[$field['field_name']]['maxLength'] = $field['text_mistakes_reports_max_text_length'];
+                    $observedFields[$field['field_name']]['reportText'] = $field['text_mistakes_reports_report_text'];
+                    $observedFields[$field['field_name']]['maxReports'] = $field['text_mistakes_reports_max_reports'];
+                }
+            }
+        }
+    }
+    return $observedFields;
+}
+
+//function text_mistakes_reports_form_alter(&$form, &$form_state, $form_id) {
+//    drupal_set_message($form_id);
+//    drupal_set_message(var_dump($form));
+//}
