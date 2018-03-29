@@ -1,37 +1,31 @@
 (function ($) {
     $(function() {
 
-        function PopUpHide(){
+        var selectedField;
+        var selectedText;
+
+        function PopUpHide() {
             $('#mistakes_popup_panel').hide();
         }
 
-        function PopUpShow(){
+        function PopUpShow() {
             $('#mistakes_popup_panel').show();
         }
 
-        function selectionIsInAllowedField(current_selection) {
-            activeFields = Drupal.settings.textMistakesReports;
+        function selectionIsInSingleField(currentSelection, fieldClassName) {
+            return !((!$(currentSelection.startContainer.parentElement).parents(fieldClassName).length) ||
+                (!$(currentSelection.endContainer.parentElement).parents(fieldClassName).length));
+        }
+
+        function selectionIsInAllowedField(currentSelection) {
+            activeFields = Drupal.settings.textMistakesReportsFields;
             var correct = false;
             $.each(activeFields, function( index, field ) {
                 if (!correct) {
-                    var htmlName = '.field-name-' + field.fieldName.split('_').join('-');
-                    var receiverEmail = field.receiverEmail;
-                    var maxLength = field.maxLength;
-                    var reportText = field.reportText;
-                    var maxReports = field.maxReports;
+                    var htmlName = getHtmlFieldName(field.fieldName);
 
-                    console.log(htmlName);
-                    // console.log(receiverEmail);
-                    // console.log(maxLength);
-                    // console.log(reportText);
-                    // console.log(maxReports);
-
-                    if ($(current_selection.startContainer.parentElement).parents(htmlName).length) {
-                        correct = true;
-                        return true;
-                    }
-
-                    if ($(current_selection.endContainer.parentElement).parents(htmlName).length) {
+                    if (selectionIsInSingleField(currentSelection, htmlName)) {
+                        selectedField = field;
                         correct = true;
                         return true;
                     }
@@ -41,27 +35,27 @@
             return correct;
         }
 
-        function selectionHasValidParents(current_selection) {
-            if (!$(current_selection.startContainer.parentElement).parents('.field').length) {
+        function getHtmlFieldName(fieldname) {
+            return '.field-name-' + fieldname.split('_').join('-');
+        }
+
+        function selectionHasValidLocation(currentSelection) {
+            if (!selectionIsInSingleField(currentSelection, '.field')) {
                 return false;
             }
 
-            if (!$(current_selection.endContainer.parentElement).parents('.field').length) {
-                return false;
-            }
-
-            if (!selectionIsInAllowedField(current_selection)) {
+            if (!selectionIsInAllowedField(currentSelection)) {
                 return false;
             }
 
             return true;
         }
 
-        function selectionIsValid(selection_text) {
-            if (selection_text.length > Drupal.settings.textMistakesReports.field_addition_text.maxLength) {
+        function selectionIsValid(selectionText) {
+            if (selectionText.length > selectedField.maxLength) {
                 var text = 'selected text is too big';
-                var report_current = ' ( current - ' + selection_text.length ;
-                var report_max = ', max - ' + Drupal.settings.textMistakesReports.field_addition_text.maxLength + ')';
+                var report_current = ' ( current - ' + selectionText.length ;
+                var report_max = ', max - ' + selectedField.maxLength + ')';
                 alert(text + report_current + report_max);
                 return false;
             }
@@ -70,7 +64,7 @@
         }
 
         function getSelectionInfo() {
-            var html = '';
+            var selectedText = '';
             if (typeof window.getSelection !== 'undefined') {
                 var sel = window.getSelection();
                 if (sel.rangeCount) {
@@ -79,45 +73,111 @@
                         for (var i = 0, len = sel.rangeCount; i < len; ++i) {
                             container.appendChild(sel.getRangeAt(i).cloneContents());
                         }
-                        html = container.innerHTML;
+                        selectedText = container.innerHTML;
                     }
                 }
-            } else if (typeof document.selection !== 'undefined') {
-                if (document.selection.type === 'Text') {
-                    html = document.selection.createRange().htmlText;
+            }
+
+            if(count_space(selectedText) < 2) {
+                var select = window.getSelection().getRangeAt(0);
+                var textInLeft = select.startContainer;
+                var startposition = select.startOffset;
+                var textInRight = select.endContainer;
+                var endposition = select.endOffset;
+                var wordInLeft = getWordsInLeft($(textInLeft).text(), startposition - 1, 3);
+                var wordInRight = getWordsInRight($(textInRight).text(), endposition, 3);
+                return {
+                    'text': selectedText,
+                    'length': selectedText.length,
+                    'textLeft' : wordInLeft,
+                    'textRight' : wordInRight
+                };
+            }
+
+            return {
+                'text': selectedText,
+                'length': selectedText.length,
+                'textLeft' : '',
+                'textRight' : ''
+            };
+        }
+
+        function getWordsInLeft(text, leftPosition, amountWords) {
+            var res = 0;
+            var word = '';
+            for(i = leftPosition; i >= 0; i--){
+                if(text.charAt(i) === " "){
+                    res++;
+                }
+                if(res === amountWords){
+                    break;
+                }
+                word = text.charAt(i) + word;
+            }
+            return word;
+        }
+
+        function getWordsInRight(text, rightPosition, amountWords) {
+            var res = 0;
+            var word = '';
+            for(i = rightPosition; i < text.length; i++){
+                if(text.charAt(i) === " "){
+                    res++;
+                }
+                if(res === amountWords){
+                    break;
+                }
+                word += text.charAt(i);
+            }
+            return word;
+        }
+
+        function count_space(str) {
+            count = str.length;
+            var res = 0;
+            for(i = 0; i < count; i++){
+                if(str.charAt(i) === " "){
+                    res++;
                 }
             }
-            return {'text': html, 'length': html.length};
+            return res;
         }
 
         function getSelection() {
-
             return window.getSelection().getRangeAt(0);
         }
-
-        var test = $('.content').find('.node').find('.content').find('p').text();
 
         $('body').keydown(function(e, byScript) {
             var keyCode = e.keyCode || e.charCode || e.which;
             if (keyCode === 10 || keyCode === 13) {
                 if (e.ctrlKey) {
-                    var selection_info = getSelectionInfo();
-                    selection_info['text'] = selection_info['text'].replace(/<[^>]+>/g,'');
+                    var selectionInfo = getSelectionInfo();
+                    selectionInfo['text'] = selectionInfo['text'].replace(/<[^>]+>/g,'');
 
-                    if (selection_info['text']) {
-                        var current_selection = getSelection();
+                    if (selectionInfo['text']) {
+                        var currentSelection = getSelection();
 
-                        if (selectionHasValidParents(current_selection)) {
-                            if (selectionIsValid(selection_info['text'])) {
-                                console.log('success 7!');
+                        if (selectionHasValidLocation(currentSelection)) {
+                            if (selectionIsValid(selectionInfo['text'])) {
+
+                                if (selectionInfo['textLeft'] !== '') {
+                                    var mainText = '<span style="text-decoration: underline;">' + selectionInfo['text'] + '</span>';
+                                    var leftText = selectionInfo['textLeft'];
+                                    var rightText = selectionInfo['textRight'];
+                                    selectedText = leftText + selectionInfo['text'] + rightText;
+                                    $('.mistakes_popup_text').html(leftText + mainText + rightText);
+                                } else {
+                                    selectedText = selectionInfo['text'];
+                                    $('.mistakes_popup_text').html(selectionInfo['text']);
+                                }
+
+                                $('#popup_title').text(selectedField['reportText']);
+
                                 PopUpShow();
-                                $('#mistakes_popup_text').text(selection_info['text']);
                             }
-
                         } else {
                             alert('wrong selection!(you cant select this text)');
                         }
-
                     } else {
                         alert('you didn\'t select anything!');
                     }
@@ -127,7 +187,7 @@
             }
         });
 
-        $('#hide_popup').click(function (el) {
+        $('#popup_hide').click(function (el) {
             PopUpHide();
         });
 
@@ -135,6 +195,30 @@
             if ($(event.target).closest('#mistakes_popup_content').length === 0) {
                 PopUpHide();
             }
+        });
+
+        $('#popup_send').click(function () {
+            objectLink = $('head').find('link[rel="canonical"]').attr('href');
+            objectType = objectLink.split('/')[1];
+            objectId = objectLink.split('/')[2];
+
+            $.ajax({
+                url: Drupal.settings.textMistakesReportsAjax.ajaxUrl,
+                type: 'POST',
+                data: {
+                    'objectType': objectType,
+                    'objectId': objectId,
+                    'objectLink': objectLink,
+                    'fieldName': selectedField.fieldName,
+                    'selectedText': selectedText,
+                    'username': Drupal.settings.textMistakesReportsUser.username
+                },
+                dataType: 'JSON',
+                success: function(data) {
+                    console.log(data);
+                }
+            });
+            PopUpHide();
         });
     })
 }(jQuery));
