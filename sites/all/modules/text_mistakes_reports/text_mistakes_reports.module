@@ -80,6 +80,16 @@ function text_mistakes_reports_ajax_report() {
         'selectedText'=> $selectedText
     ]);
 
+    db_insert('text_mistakes_report')->fields(array(
+        'entity_id' => $objectId,
+        'entity_type' => $objectType,
+        'date' => $currentDate->format('Y-m-d H:i:s'),
+        'field_name' => $fieldName,
+        'selected_text' => $selectedText,
+        'username' => $username,
+        'ip' => $ipClien,
+    ))->execute();
+
 //    drupal_mail(
 //        'text_mistakes_reports',
 //        'mymail',
@@ -90,6 +100,18 @@ function text_mistakes_reports_ajax_report() {
 //        $send = TRUE
 //    );
 
+}
+
+function text_mistakes_reports_mail ($key, &$message, $params) {
+    switch ($key) {
+        case 'mymail':
+            // Set headers etc
+            $message['to'] = variable_get('text_mistakes_reports_email_receiver');
+            $message['subject'] = t('Hello');
+            $message['body'][] = t('Hello @username,', array('@username' => $params['username']));
+            $message['body'][] = t('The main part of the message.');
+            break;
+    }
 }
 
 function text_mistakes_reports_menu()
@@ -105,6 +127,15 @@ function text_mistakes_reports_menu()
         'type' => MENU_NORMAL_ITEM,
     );
 
+    $items['admin/reports/text_mistakes_reports'] = array(
+        'title' => 'Sender of Text Mistakes Reports',
+        'description' => 'A module that add popup to field types "long text"',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('text_mistakes_reports_form_grid'),
+        'access arguments' => array('access administration pages'),
+        'type' => MENU_NORMAL_ITEM,
+    );
+
     $items['custom/ajax'] = array(
         'type' => MENU_CALLBACK,
         'page callback' => 'text_mistakes_reports_ajax_report',
@@ -114,16 +145,29 @@ function text_mistakes_reports_menu()
     return $items;
 }
 
-function text_mistakes_reports_mail ($key, &$message, $params) {
-    switch ($key) {
-        case 'mymail':
-            // Set headers etc
-            $message['to'] = variable_get('text_mistakes_reports_email_receiver');
-            $message['subject'] = t('Hello');
-            $message['body'][] = t('Hello @username,', array('@username' => $params['username']));
-            $message['body'][] = t('The main part of the message.');
-            break;
-    }
+function text_mistakes_reports_form_grid($form, &$form_state)
+{
+    $form['text_mistakes'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Email where sending reports'),
+        '#default_value' => variable_get('text_mistakes', variable_get('site_mail', '')),
+        '#required' => TRUE,
+        '#theme' => 'text_mistakes_reports_grid_theme'
+    );
+
+    return system_settings_form($form);
+}
+
+function text_mistakes_reports_grid_theme($existing, $type, $theme, $path)
+{
+    return [
+        'text_mistakes_reports_grid_theme' => [
+            'render element' => 'form',
+            'variables' => [],
+            'template' => 'text_mistakes_reports_grid',
+        ],
+
+    ];
 }
 
 function text_mistakes_reports_form($form, &$form_state)
