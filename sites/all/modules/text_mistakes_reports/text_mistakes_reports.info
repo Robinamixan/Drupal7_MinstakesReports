@@ -3,3 +3,4 @@ description = A module that add popup to field types "long text" and "long text 
 core = 7.x
 package = My Modules
 configure = admin/config/content/text_mistakes_reports
+php = 7.0

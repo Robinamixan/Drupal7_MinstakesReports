@@ -1,48 +1,56 @@
 <?php
 function text_mistakes_reports_schema() {
-    $schema['text_mistakes_report'] = array(
-        'fields' => array(
-            'report_id' => array(
-                'type' => 'serial',
-                'unsigned' => TRUE,
-                'not null' => TRUE),
-            'entity_id' => array(
-                'type' => 'int',
-                'unsigned' => TRUE,
-                'not null' => TRUE,
-                'default' => 0),
-            'entity_type' => array(
-                'type' => 'varchar',
-                'length' => 32,
-                'not null' => TRUE,
-                'default' => ''),
-            'date_create' => array(
-                'type' => 'datetime',
-                'mysql_type' => 'datetime',
-                'not null' => TRUE),
-            'field_name' => array(
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-                'default' => ''),
-            'selected_text' => array(
-                'type' => 'varchar',
-                'length' => 5000,
-                'not null' => TRUE,
-                'default' => ''),
-            'username' => array(
-                'type' => 'varchar',
-                'length' => 100,
-                'not null' => TRUE,
-                'default' => ''),
-            'user_ip' => array(
-                'type' => 'varchar',
-                'length' => 20,
-                'not null' => TRUE,
-                'default' => ''),
-        ),
-        'primary key' => array('report_id')
-    );
+  $schema['text_mistakes_report'] = [
+    'fields' => [
+      'report_id' => [
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'entity_id' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      'entity_type' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'date_create' => [
+        'type' => 'datetime',
+        'mysql_type' => 'datetime',
+        'not null' => TRUE,
+      ],
+      'field_name' => [
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'selected_text' => [
+        'type' => 'varchar',
+        'length' => 5000,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'username' => [
+        'type' => 'varchar',
+        'length' => 100,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'user_ip' => [
+        'type' => 'varchar',
+        'length' => 20,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+    ],
+    'primary key' => ['report_id'],
+  ];
 
-    return $schema;
+  return $schema;
 }
