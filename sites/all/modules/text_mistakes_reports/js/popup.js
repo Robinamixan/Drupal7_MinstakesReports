@@ -198,12 +198,19 @@
         });
 
         $('#popup_send').click(function () {
-            objectLink = $('head').find('link[rel="canonical"]').attr('href');
+            objectLink = $('head').find('link[rel="shortlink"]').attr('href');
             objectType = objectLink.split('/')[1];
             objectId = objectLink.split('/')[2];
-
+            console.log({
+                'objectType': objectType,
+                'objectId': objectId,
+                'objectLink': objectLink,
+                'fieldName': selectedField.fieldName,
+                'selectedText': selectedText,
+                'username': Drupal.settings.textMistakesReportsUser.username
+            });
             $.ajax({
-                url: Drupal.settings.textMistakesReportsAjax.ajaxUrl,
+                url: Drupal.settings.textMistakesReportsAjax.sendReportUrl,
                 type: 'POST',
                 data: {
                     'objectType': objectType,
