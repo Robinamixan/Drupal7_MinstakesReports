@@ -5,38 +5,40 @@ global $user;
 drupal_add_js(drupal_get_path('module', 'text_mistakes_reports') . '/js/popup.js');
 drupal_add_js(drupal_get_path('module', 'text_mistakes_reports') . '/js/grid.js');
 drupal_add_js(['textMistakesReportsFields' => getFieldsSettingsForPage()], 'setting');
-drupal_add_js(['textMistakesReportsAjax' => [
-    'sendReportUrl' => url('text_mistakes_reports/ajax/send/report'),
-    'gridDeleteUrl' => url('text_mistakes_reports/ajax/grid/delete'),
-]], 'setting');
+drupal_add_js([
+    'textMistakesReportsAjax' => [
+        'sendReportUrl' => url('text_mistakes_reports/ajax/send/report'),
+        'gridDeleteUrl' => url('text_mistakes_reports/ajax/grid/delete'),
+    ],
+], 'setting');
 drupal_add_js(['textMistakesReportsUser' => ['username' => $user->name]], 'setting');
 
 drupal_add_css(drupal_get_path('module', 'text_mistakes_reports') . '/css/bootstrap.min.css');
 
 function text_mistakes_reports_help($path, $arg)
 {
+    $messagePart1 = 'A module that add popup to field types "long text" and "long text and summary"';
+    $messagePart2 = ' and it can send reports about mistakes to admin email.';
     switch ($path) {
         case 'admin/help#text_mistakes_reports':
-            return t('A module that add popup to field types "long text" and "long text and summary" and it can send reports about mistakes to admin email.');
+            return t($messagePart1 . $messagePart2);
             break;
     }
 }
 
 function text_mistakes_reports_block_info()
 {
-    $blocks['text_mistakes_reports'] = [
-        // The name that will appear in the block list.
+    $blocks['text_mistakes_reports_popup'] = [
         'info' => t('Sender of Text Mistakes Reports'),
-        'status' => TRUE,
+        'status' => true,
         'region' => 'Content',
         'visibility' => BLOCK_VISIBILITY_LISTED,
         'pages' => 'node/*',
     ];
 
     $blocks['text_mistakes_reports_grid'] = [
-        // The name that will appear in the block list.
         'info' => t('Reports Grid'),
-        'status' => TRUE,
+        'status' => true,
         'region' => 'Content',
         'visibility' => BLOCK_VISIBILITY_LISTED,
         'pages' => 'admin/reports/text_mistakes_reports',
@@ -48,11 +50,12 @@ function text_mistakes_reports_block_info()
 function text_mistakes_reports_block_view($delta = '')
 {
     switch ($delta) {
-        case 'text_mistakes_reports':
+        case 'text_mistakes_reports_popup':
             $block['content'] = [
-                '#theme' => 'text_mistakes_reports_theme',
+                '#theme' => 'text_mistakes_reports_popup_theme',
                 '#type' => 'markup',
             ];
+
             return $block;
 
         case 'text_mistakes_reports_grid':
@@ -60,6 +63,7 @@ function text_mistakes_reports_block_view($delta = '')
                 '#theme' => 'text_mistakes_reports_grid_theme',
                 '#type' => 'markup',
             ];
+
             return $block;
     }
 }
@@ -67,14 +71,15 @@ function text_mistakes_reports_block_view($delta = '')
 function text_mistakes_reports_theme($existing, $type, $theme, $path)
 {
     return [
-        'text_mistakes_reports_theme' => [
+        'text_mistakes_reports_popup_theme' => [
             'variables' => [],
-            'template' => 'text_mistakes_reports',
+            'template' => 'text_mistakes_reports_popup',
+            'path' => drupal_get_path('module', 'text_mistakes_reports'),
         ],
 
         'text_mistakes_reports_grid_theme' => [
             'variables' => [
-                'rows' => getReportsRowsFromTable()
+                'rows' => getReportsRowsFromTable(),
             ],
             'template' => 'text_mistakes_reports_grid',
             'path' => drupal_get_path('module', 'text_mistakes_reports'),
@@ -92,9 +97,8 @@ function text_mistakes_reports_ajax_report()
     $selectedText = (isset($_POST['selectedText']) ? $_POST['selectedText'] : null);
     $username = (isset($_POST['username']) ? $_POST['username'] : null);
 
-    $entityLink = $_SERVER['HTTP_HOST'] . url($entityType . '/' . $entityId);
-
-    $entity = entity_load($entityType, array((int) $entityId));
+    $entityLink = $_SERVER['HTTP_HOST'].url($entityType.'/'.$entityId);
+    $entity = entity_load($entityType, [(int) $entityId]);
     $bundle = $entity[$entityId]->type;
 
     $fieldNameLabel = field_info_instance($entityType, $fieldName, $bundle)['label'];
@@ -102,26 +106,25 @@ function text_mistakes_reports_ajax_report()
     $fieldNameId = $fieldName;
 
     $currentDate = new DateTime();
-
     $userIP = ip_address();
-
     $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
 
-    if (getAmountReportsByIPToday($userIP) > $maxAmountReportsToday) {
+    // +1 current report
+    if (getAmountReportsByIPToday($userIP) + 1 <= (int) $maxAmountReportsToday) {
 
         drupal_json_output([
             'condition' => 'success',
         ]);
 
-        db_insert('text_mistakes_report')->fields(array(
+        db_insert('text_mistakes_report')->fields([
             'entity_id' => $entityId,
             'entity_type' => $entityType,
-            'date' => $currentDate->format('Y-m-d H:i:s'),
+            'date_create' => $currentDate->format('Y-m-d H:i:s'),
             'field_name' => $fieldName,
             'selected_text' => $selectedText,
             'username' => $username,
-            'ip' => $userIP,
-        ))->execute();
+            'user_ip' => $userIP,
+        ])->execute();
 
         drupal_flush_all_caches();
 
@@ -142,13 +145,13 @@ function text_mistakes_reports_ajax_report()
                 'User IP' => $userIP,
             ],
             $from = 'demo@demo.com',
-            $send = TRUE
+            $send = true
         );
 
     } else {
         drupal_json_output([
             'condition' => 'failure',
-            'errorText' => 'Sorry but you cant sending reports for this field anymore today.'
+            'errorText' => 'Sorry but you cant sending reports anymore today.',
         ]);
     }
 }
@@ -168,7 +171,8 @@ function text_mistakes_reports_ajax_grid_delete()
     ]);
 }
 
-function text_mistakes_reports_mail ($key, &$message, $params) {
+function text_mistakes_reports_mail($key, &$message, $params)
+{
     switch ($key) {
         case 'mistake_report_mail':
             $message['subject'] = t('Mistake Report');
@@ -230,42 +234,42 @@ function text_mistakes_reports_grid_form($form, &$form_state)
 
 function text_mistakes_reports_form($form, &$form_state)
 {
-    $form['text_mistakes_reports_email_receiver'] = array(
+    $form['text_mistakes_reports_email_receiver'] = [
         '#type' => 'textfield',
         '#title' => t('Email where sending reports'),
         '#default_value' => variable_get('text_mistakes_reports_email_receiver', variable_get('site_mail', '')),
-        '#required' => TRUE,
-    );
+        '#required' => true,
+    ];
 
-    $form['text_mistakes_reports_max_text_length'] = array(
+    $form['text_mistakes_reports_max_text_length'] = [
         '#type' => 'textfield',
         '#title' => t('Maximum size of text length'),
         '#default_value' => variable_get('text_mistakes_reports_max_text_length', 50),
         '#size' => 4,
         '#maxlength' => 4,
         '#description' => t('The maximum size of text that can be to report'),
-        '#element_validate' => array('element_validate_integer_positive'),
-        '#required' => TRUE,
-    );
+        '#element_validate' => ['element_validate_integer_positive'],
+        '#required' => true,
+    ];
 
-    $form['text_mistakes_reports_report_text'] = array(
+    $form['text_mistakes_reports_report_text'] = [
         '#type' => 'textarea',
         '#title' => t('Report Text'),
         '#default_value' => variable_get('text_mistakes_reports_report_text', ''),
         '#description' => t('The maximum size of text that can be to report'),
-        '#required' => TRUE,
-    );
+        '#required' => true,
+    ];
 
-    $form['text_mistakes_reports_max_reports'] = array(
+    $form['text_mistakes_reports_max_reports'] = [
         '#type' => 'textfield',
         '#title' => t('Maximum number of reports'),
         '#default_value' => variable_get('text_mistakes_reports_max_reports', 3),
         '#size' => 4,
         '#maxlength' => 4,
         '#description' => t('The maximum number of reports to send with one IP'),
-        '#element_validate' => array('element_validate_integer_positive'),
-        '#required' => TRUE,
-    );
+        '#element_validate' => ['element_validate_integer_positive'],
+        '#required' => true,
+    ];
 
     return system_settings_form($form);
 }
@@ -276,42 +280,45 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(&$form, &$for
     $defaultValue = getDefaultValues($field);
 
     if (isValidFieldType($field['type'])) {
-        $form['field']['text_mistakes_reports_enabled'] = array(
+        $form['field']['text_mistakes_reports_enabled'] = [
             '#type' => 'select',
             '#title' => t('Enable "Text Mistakes Reports" Module'),
             '#options' => [
                 '1' => 'yes',
-                '0' => 'no'
+                '0' => 'no',
             ],
             '#default_value' => $defaultValue['enabled'],
-        );
+        ];
 
-        $form['field']['text_mistakes_reports_email_receiver'] = array(
+        $form['field']['text_mistakes_reports_email_receiver'] = [
             '#type' => 'textfield',
             '#title' => t('Email where sending reports'),
             '#default_value' => $defaultValue['email_receiver'],
-        );
+        ];
 
-        $form['field']['text_mistakes_reports_max_text_length'] = array(
+        $form['field']['text_mistakes_reports_max_text_length'] = [
             '#type' => 'textfield',
             '#title' => t('Maximum size of text length'),
             '#default_value' => $defaultValue['max_text_length'],
             '#description' => t('The maximum size of text that can be to report'),
-            '#element_validate' => array('element_validate_integer_positive'),
-        );
+            '#element_validate' => ['element_validate_integer_positive'],
+        ];
 
-        $form['field']['text_mistakes_reports_report_text'] = array(
+        $form['field']['text_mistakes_reports_report_text'] = [
             '#type' => 'textarea',
             '#title' => t('Report Text'),
             '#default_value' => $defaultValue['report_text'],
             '#description' => t('The maximum size of text that can be to report'),
             '#value_callback' => 'text_mistakes_reports_form_field_ui_field_edit_form_field_value',
-        );
+        ];
     }
 }
 
-function text_mistakes_reports_form_field_ui_field_edit_form_field_value($element, $input = FALSE, $form_state = array())
-{
+function text_mistakes_reports_form_field_ui_field_edit_form_field_value(
+    $element,
+    $input = false,
+    $form_state = []
+) {
     if (empty($input)) {
         return variable_get('text_mistakes_reports_report_text');
     } else {
@@ -357,10 +364,12 @@ function getFieldsSettingsForPage()
                     $observedFields[$field['field_name']]['fieldName'] = $field['field_name'];
                     $observedFields[$field['field_name']]['receiverEmail'] = $field['text_mistakes_reports_email_receiver'];
                     $observedFields[$field['field_name']]['maxLength'] = $field['text_mistakes_reports_max_text_length'];
+                    $observedFields[$field['field_name']]['reportText'] = $field['text_mistakes_reports_report_text'];
                 }
             }
         }
     }
+
     return $observedFields;
 }
 
@@ -369,15 +378,15 @@ function getReportsRowsFromTable()
     $rows = [];
 
     $query = db_select('text_mistakes_report', 'r');
-    $query->fields('r',[
+    $query->fields('r', [
         'report_id',
         'entity_id',
         'entity_type',
-        'date',
+        'date_create',
         'field_name',
         'selected_text',
         'username',
-        'ip',
+        'user_ip',
     ]);
     $rows = $query->execute()->fetchAll();
 
@@ -388,12 +397,13 @@ function getAmountReportsByIPToday($userIP)
 {
     $todayDate = new DateTime();
     $query = db_select('text_mistakes_report', 'r');
-    $query->fields('r',[
+    $query->fields('r', [
         'report_id',
     ]);
-    $query->condition('ip', $userIP);
-    $query->condition('date', $todayDate->format('Y-m-d'), '>=');
+    $query->condition('user_ip', $userIP);
+    $query->condition('date_create', $todayDate->format('Y-m-d'), '>=');
     $rows = $query->execute()->fetchAll();
+
     return count($rows);
 }
 
@@ -405,15 +415,15 @@ function convertRowsToNededFields($rows)
         $reportId = $row->report_id;
         $entityType = $row->entity_type;
         $entityId = $row->entity_id;
-        $createDate = $row->date;
+        $createDate = $row->date_create;
         $fieldNameId = $row->field_name;
         $selectedText = $row->selected_text;
         $username = $row->username;
-        $ipClien = $row->ip;
+        $ipClien = $row->user_ip;
 
-        $entityLink = $_SERVER['HTTP_HOST'] . url($entityType . '/' . $entityId);
+        $entityLink = $_SERVER['HTTP_HOST'].url($entityType.'/'.$entityId);
 
-        $entity = entity_load($entityType, array((int) $entityId));
+        $entity = entity_load($entityType, [(int)$entityId]);
         $bundle = $entity[$entityId]->type;
         $fieldNameLabel = field_info_instance($entityType, $fieldNameId, $bundle)['label'];
 
@@ -438,8 +448,3 @@ function isValidFieldType($fieldType)
 {
     return ($fieldType === 'text_long') || ($fieldType === 'text_with_summary');
 }
-
-//function text_mistakes_reports_form_alter(&$form, &$form_state, $form_id) {
-//    drupal_set_message($form_id);
-//    drupal_set_message(var_dump($form));
-//}

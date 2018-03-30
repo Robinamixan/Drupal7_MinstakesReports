@@ -16,7 +16,7 @@ function text_mistakes_reports_schema() {
                 'length' => 32,
                 'not null' => TRUE,
                 'default' => ''),
-            'date' => array(
+            'date_create' => array(
                 'type' => 'datetime',
                 'mysql_type' => 'datetime',
                 'not null' => TRUE),
@@ -35,7 +35,7 @@ function text_mistakes_reports_schema() {
                 'length' => 100,
                 'not null' => TRUE,
                 'default' => ''),
-            'ip' => array(
+            'user_ip' => array(
                 'type' => 'varchar',
                 'length' => 20,
                 'not null' => TRUE,
