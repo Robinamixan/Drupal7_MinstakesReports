@@ -4,3 +4,5 @@ core = 7.x
 package = My Modules
 configure = admin/config/content/text_mistakes_reports
 php = 7.0
+
+dependencies[] = smtp

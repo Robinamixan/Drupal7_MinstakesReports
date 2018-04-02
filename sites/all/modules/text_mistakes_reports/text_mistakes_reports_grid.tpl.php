@@ -2,10 +2,13 @@
     <table>
         <thead>
         <tr>
-          <?php foreach ($rows[0] as $key => $value): ?>
+          <?php foreach ($rows as $key => $row): ?>
+            <?php foreach ($row as $key => $value): ?>
 
-            <th><?php print $key; ?></th>
+                <th><?php print $key; ?></th>
 
+            <?php endforeach; ?>
+            <?php break; ?>
           <?php endforeach; ?>
         </tr>
         </thead>
@@ -29,7 +32,7 @@
                 <td>
                     <button id="report_delete_<?php print $row['Report ID']; ?>"
                             class="btn_report_delete btn">
-                        Delete
+                      <?php print t('Delete') ?>
                     </button>
                 </td>
             </tr>

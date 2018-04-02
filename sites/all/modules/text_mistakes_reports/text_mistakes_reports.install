@@ -54,6 +54,15 @@ function text_mistakes_reports_schema() {
       ],
     ],
     'primary key' => ['report_id'],
+    'indexes' => array(
+      'text_mistakes_report_entity_id' => ['entity_id'],
+      'text_mistakes_report_entity_type' => ['entity_type'],
+      'text_mistakes_report_date_create' => ['date_create'],
+      'text_mistakes_report_field_name' => ['field_name'],
+      'text_mistakes_report_user_id' => ['user_id'],
+      'text_mistakes_report_user_ip' => ['user_ip'],
+      'text_mistakes_report_user_id_ip' => ['user_id', 'user_ip'],
+    ),
   ];
 
   return $schema;
