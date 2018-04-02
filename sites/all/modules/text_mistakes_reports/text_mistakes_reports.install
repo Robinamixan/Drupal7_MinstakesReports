@@ -13,6 +13,11 @@ function text_mistakes_reports_schema() {
         'not null' => TRUE,
         'default' => 0,
       ],
+      'revision_id' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'default' => 0,
+      ],
       'entity_type' => [
         'type' => 'varchar',
         'length' => 32,
@@ -36,10 +41,9 @@ function text_mistakes_reports_schema() {
         'not null' => TRUE,
         'default' => '',
       ],
-      'username' => [
+      'user_id' => [
         'type' => 'varchar',
         'length' => 100,
-        'not null' => TRUE,
         'default' => '',
       ],
       'user_ip' => [

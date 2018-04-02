@@ -1,10 +1,10 @@
 <div class="container">
-    <table class="table table-hover table-bordered ">
+    <table>
         <thead>
         <tr>
           <?php foreach ($rows[0] as $key => $value): ?>
 
-              <th><?php print $key; ?></th>
+            <th><?php print $key; ?></th>
 
           <?php endforeach; ?>
         </tr>

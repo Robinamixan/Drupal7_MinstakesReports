@@ -1,28 +1,5 @@
 <?php
 
-global $user;
-
-drupal_add_js(drupal_get_path('module',
-    'text_mistakes_reports') . '/js/popup.js');
-drupal_add_js(drupal_get_path('module',
-    'text_mistakes_reports') . '/js/grid.js');
-drupal_add_js(['textMistakesReportsFields' => text_mistakes_reports_get_fields_settings_for_page()],
-  'setting');
-drupal_add_js([
-  'textMistakesReportsAjax' => [
-    'sendReportUrl' => url('text_mistakes_reports/ajax/send/report'),
-    'gridDeleteUrl' => url('text_mistakes_reports/ajax/grid/delete'),
-  ],
-], 'setting');
-drupal_add_js(['textMistakesReportsUser' => ['username' => $user->name]],
-  'setting');
-
-drupal_add_css(drupal_get_path('module',
-    'text_mistakes_reports') . '/css/bootstrap.min.css');
-drupal_add_css(drupal_get_path('module',
-    'text_mistakes_reports') . '/css/popup.css');
-
-
 function text_mistakes_reports_help($path, $arg) {
   $messagePart1 = 'A module that add popup to field types "long text" and "long text and summary"';
   $messagePart2 = ' and it can send reports about mistakes to admin email.';
@@ -54,19 +31,62 @@ function text_mistakes_reports_block_info() {
 }
 
 function text_mistakes_reports_block_view($delta = '') {
+  global $user;
   switch ($delta) {
     case 'text_mistakes_reports_popup':
+      $fieldsSettings = text_mistakes_reports_get_fields_settings_for_page();
+      $sendReportUrl = ['sendReportUrl' => url('text_mistakes_reports/ajax/send/report')];
+      $userId = ['userId' => $user->uid];
+
       $block['content'] = [
         '#theme' => 'text_mistakes_reports_popup_theme',
         '#type' => 'markup',
+
+        '#attached' => [
+          'css' => [
+            drupal_get_path('module',
+              'text_mistakes_reports') . '/css/popup.css',
+
+          ],
+          'js' => [
+            drupal_get_path('module', 'text_mistakes_reports') . '/js/popup.js',
+            [
+              'data' => ['textMistakesReportsFields' => $fieldsSettings],
+              'type' => 'setting',
+            ],
+            [
+              'data' => ['textMistakesReportsAjax' => $sendReportUrl],
+              'type' => 'setting',
+            ],
+            [
+              'data' => ['textMistakesReportsUser' => $userId],
+              'type' => 'setting',
+            ],
+          ],
+        ],
       ];
 
       return $block;
 
     case 'text_mistakes_reports_grid':
+      $gridDeleteUrl = ['gridDeleteUrl' => url('text_mistakes_reports/ajax/grid/delete')];
       $block['content'] = [
         '#theme' => 'text_mistakes_reports_grid_theme',
         '#type' => 'markup',
+        '#attached' => [
+          'css' => [
+            drupal_get_path('module',
+              'text_mistakes_reports') . '/css/popup.css',
+
+          ],
+          'js' => [
+            drupal_get_path('module', 'text_mistakes_reports') . '/js/grid.js',
+            [
+              'data' => ['textMistakesReportsAjax' => $gridDeleteUrl],
+              'type' => 'setting',
+            ],
+          ],
+        ],
       ];
 
       return $block;
@@ -98,11 +118,13 @@ function text_mistakes_reports_ajax_report() {
   $entityLink = (isset($_POST['objectLink']) ? $_POST['objectLink'] : NULL);
   $fieldName = (isset($_POST['fieldName']) ? $_POST['fieldName'] : NULL);
   $selectedText = (isset($_POST['selectedText']) ? $_POST['selectedText'] : NULL);
-  $username = (isset($_POST['username']) ? $_POST['username'] : NULL);
+  $userId = (isset($_POST['userId']) ? $_POST['userId'] : NULL);
 
   $entityLink = $_SERVER['HTTP_HOST'] . url($entityType . '/' . $entityId);
   $entity = entity_load($entityType, [(int) $entityId]);
   $bundle = $entity[$entityId]->type;
+
+  $revisionId = $entity[$entityId]->vid ? $entity[$entityId]->vid : '';
 
   $fieldNameLabel = field_info_instance($entityType, $fieldName,
     $bundle)['label'];
@@ -116,21 +138,22 @@ function text_mistakes_reports_ajax_report() {
   // +1 current report
   if (text_mistakes_reports_get_amount_reports_by_ip($userIP) + 1 <= (int) $maxAmountReportsToday) {
 
+    $username = $userId ? user_load($userId)->name : 'anonymous';
+
     drupal_json_output([
       'condition' => 'success',
     ]);
 
     db_insert('text_mistakes_report')->fields([
       'entity_id' => $entityId,
+      'revision_id' => $revisionId,
       'entity_type' => $entityType,
       'date_create' => $currentDate->format('Y-m-d H:i:s'),
       'field_name' => $fieldName,
       'selected_text' => $selectedText,
-      'username' => $username,
+      'user_id' => $userId,
       'user_ip' => $userIP,
     ])->execute();
-
-    drupal_flush_all_caches();
 
     drupal_mail(
       'text_mistakes_reports',
@@ -139,6 +162,7 @@ function text_mistakes_reports_ajax_report() {
       language_default(),
       $params = [
         'Entity ID' => $entityId,
+        'Revision ID' => $revisionId,
         'Entity Type' => $entityType,
         'Entity Link' => $entityLink,
         'Date of Create' => $currentDate->format('Y-m-d H:i:s'),
@@ -148,7 +172,7 @@ function text_mistakes_reports_ajax_report() {
         'Username' => $username,
         'User IP' => $userIP,
       ],
-      $from = 'demo@demo.com',
+      $from = variable_get('smtp_username'),
       $send = TRUE
     );
   }
@@ -380,25 +404,6 @@ function text_mistakes_reports_get_fields_settings_for_page() {
   return $observedFields;
 }
 
-function text_mistakes_reports_get_reports_rows_from_table() {
-  $rows = [];
-
-  $query = db_select('text_mistakes_report', 'r');
-  $query->fields('r', [
-    'report_id',
-    'entity_id',
-    'entity_type',
-    'date_create',
-    'field_name',
-    'selected_text',
-    'username',
-    'user_ip',
-  ]);
-  $rows = $query->execute()->fetchAll();
-
-  return text_mistakes_reports_convert_rows_to_neded_fields($rows);
-}
-
 function text_mistakes_reports_get_amount_reports_by_ip($userIP) {
   $todayDate = new DateTime();
   $query = db_select('text_mistakes_report', 'r');
@@ -412,6 +417,26 @@ function text_mistakes_reports_get_amount_reports_by_ip($userIP) {
   return count($rows);
 }
 
+function text_mistakes_reports_get_reports_rows_from_table() {
+  $rows = [];
+
+  $query = db_select('text_mistakes_report', 'r');
+  $query->fields('r', [
+    'report_id',
+    'entity_id',
+    'revision_id',
+    'entity_type',
+    'date_create',
+    'field_name',
+    'selected_text',
+    'user_id',
+    'user_ip',
+  ]);
+  $rows = $query->execute()->fetchAll();
+
+  return text_mistakes_reports_convert_rows_to_neded_fields($rows);
+}
+
 function text_mistakes_reports_convert_rows_to_neded_fields($rows) {
   $correctRows = [];
 
@@ -419,10 +444,11 @@ function text_mistakes_reports_convert_rows_to_neded_fields($rows) {
     $reportId = $row->report_id;
     $entityType = $row->entity_type;
     $entityId = $row->entity_id;
+    $revisionId = $row->revision_id;
     $createDate = $row->date_create;
     $fieldNameId = $row->field_name;
     $selectedText = $row->selected_text;
-    $username = $row->username;
+    $userId = $row->user_id;
     $ipClien = $row->user_ip;
 
     $entityLink = $_SERVER['HTTP_HOST'] . url($entityType . '/' . $entityId);
@@ -431,10 +457,12 @@ function text_mistakes_reports_convert_rows_to_neded_fields($rows) {
     $bundle = $entity[$entityId]->type;
     $fieldNameLabel = field_info_instance($entityType, $fieldNameId,
       $bundle)['label'];
+    $username = $userId ? user_load($userId)->name : 'anonymous';
 
     $correctRows[$key] = [
       'Report ID' => $reportId,
       'Entity ID' => $entityId,
+      'Revision ID' => $revisionId,
       'Entity Type' => $entityType,
       'Entity Link' => $entityLink,
       'Date of Create' => $createDate,

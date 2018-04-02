@@ -1,5 +1,3 @@
-<?php //var_dump(field_info_instance('node', 'field_addition_text', 'news'));?>
-
 <div id="mistakes_popup_panel">
     <div class="popup_backgroung" id="mistakes_popup_background">
         <div class="popup_content" id="mistakes_popup_content">

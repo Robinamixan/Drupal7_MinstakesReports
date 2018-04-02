@@ -210,7 +210,7 @@
                     'objectLink': objectLink,
                     'fieldName': selectedField.fieldName,
                     'selectedText': selectedText,
-                    'username': Drupal.settings.textMistakesReportsUser.username
+                    'userId': Drupal.settings.textMistakesReportsUser.userId
                 },
                 dataType: 'JSON',
                 success: function (data) {
