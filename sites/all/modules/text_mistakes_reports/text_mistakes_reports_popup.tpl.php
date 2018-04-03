@@ -1,5 +1,3 @@
-<?php var_dump(entity_get_controller('text_mistakes_report')); ?>
-
 <div id="mistakes_popup_panel">
     <div class="popup_backgroung" id="mistakes_popup_background">
         <div class="popup_content" id="mistakes_popup_content">

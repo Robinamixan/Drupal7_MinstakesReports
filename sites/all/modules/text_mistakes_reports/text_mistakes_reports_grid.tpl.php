@@ -1,4 +1,4 @@
-<div class="container">
+<div id="report_mistake_grid" class="container">
     <table>
         <thead>
         <tr>
@@ -40,4 +40,6 @@
         <?php endforeach; ?>
         </tbody>
     </table>
+    <button id="grid_btn_back_page">Back</button>
+    <button id="grid_btn_next_page">Next</button>
 </div>
