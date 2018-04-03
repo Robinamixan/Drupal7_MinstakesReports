@@ -29,7 +29,6 @@ function text_mistakes_reports_block_info() {
     'visibility' => BLOCK_VISIBILITY_LISTED,
     'pages' => 'node/*',
   ];
-
   return $blocks;
 }
 
@@ -71,7 +70,6 @@ function text_mistakes_reports_block_view($delta = '') {
           ],
         ],
       ];
-
       return $block;
   }
 }
@@ -122,7 +120,6 @@ function text_mistakes_reports_entity_info() {
  * @return array
  */
 function text_mistakes_reports_load($id, $reset = FALSE) {
-
   return text_mistakes_reports_load_multiple([$id], [], $reset);
 }
 
@@ -140,11 +137,9 @@ function text_mistakes_reports_load_multiple(
   $conditions = [],
   $reset = FALSE
 ) {
-
   if ($ids) {
     return entity_load('text_mistakes_report', $ids, $conditions, $reset);
   }
-
   return entity_load('text_mistakes_report');
 }
 
@@ -189,7 +184,6 @@ function text_mistakes_reports_delete($id) {
  * @param array $ids
  */
 function text_mistakes_reports_delete_multiple($ids = []) {
-
   if ($ids) {
     foreach ($ids as $id) {
       db_delete('text_mistakes_report')
@@ -216,11 +210,9 @@ function text_mistakes_reports_save($values = []) {
   try {
     db_insert('text_mistakes_report')->fields($values)->execute();
     cache_clear_all('*', 'cache', TRUE);
-
   } catch (Exception $e) {
     return FALSE;
   }
-
   return TRUE;
 }
 
@@ -375,7 +367,6 @@ function text_mistakes_reports_mail($key, &$message, $params) {
             ['@key' => $key, '@value' => $value]);
         }
       }
-
       break;
   }
 }
@@ -645,7 +636,7 @@ function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
   $records = text_mistakes_reports_load_multiple_interval($currentPage * RECORD_PER_PAGE,
     RECORD_PER_PAGE);
 
-  return text_mistakes_reports_convert_rows_to_neded_fields($records);
+  return text_mistakes_reports_convert_records_to_needed_view($records);
 }
 
 /**
@@ -655,7 +646,7 @@ function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
  *
  * @return array
  */
-function text_mistakes_reports_convert_rows_to_neded_fields($records) {
+function text_mistakes_reports_convert_records_to_needed_view($records) {
   $correctRows = [];
 
   foreach ($records as $index => $record) {
