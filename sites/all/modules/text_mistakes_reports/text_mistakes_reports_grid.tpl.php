@@ -28,7 +28,14 @@
                   <?php elseif ($key === 'Selected Text'): ?>
                         <td>
                           <?php foreach (explode('|', $value) as $string): ?>
-                            <?php print $string; ?>
+                            <?php if ($string !== ''): ?>
+                                <span>
+                                    <
+                                    <?php print $string; ?>
+                                    >
+                                </span>
+                            <?php endif; ?>
+
                           <?php endforeach; ?>
                         </td>
                   <?php else: ?>

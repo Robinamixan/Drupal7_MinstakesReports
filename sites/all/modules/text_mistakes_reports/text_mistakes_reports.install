@@ -67,9 +67,3 @@ function text_mistakes_reports_schema() {
 
   return $schema;
 }
-/*
-
-13) What does happen if there is not entity with this id?
-
-*/
-

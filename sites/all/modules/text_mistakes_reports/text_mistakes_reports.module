@@ -311,9 +311,15 @@ function text_mistakes_reports_ajax_grid_delete() {
   text_mistakes_reports_delete($reportId);
 
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-  if (($currentPage > 0) && (!$rows)) {
-    $currentPage--;
-    $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+
+  if (!$rows) {
+    while ($currentPage >= 0) {
+      $currentPage--;
+      $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+      if ($rows) {
+        break;
+      }
+    }
   }
 
   $amountReports = text_mistakes_reports_get_amount_reports();
@@ -662,8 +668,20 @@ function text_mistakes_reports_get_amount_reports() {
 function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
   $records = text_mistakes_reports_load_multiple_interval($currentPage * RECORD_PER_PAGE,
     RECORD_PER_PAGE);
-
+  $records = text_mistakes_reports_check_records_entity_exist($records);
   return text_mistakes_reports_convert_records_to_needed_view($records);
+}
+
+function text_mistakes_reports_check_records_entity_exist($records) {
+  $validRecords = [];
+  foreach ($records as $index => $record) {
+    if (!entity_load($record->entity_type, [(int) $record->entity_id])) {
+      text_mistakes_reports_delete($record->report_id);
+    } else {
+      $validRecords[] = $record;
+    }
+  }
+  return $validRecords;
 }
 
 /**
