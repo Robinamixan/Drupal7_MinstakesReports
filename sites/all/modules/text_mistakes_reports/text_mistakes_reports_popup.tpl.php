@@ -18,7 +18,11 @@
                   <?php print t('Cancel'); ?>
                 </button>
             </div>
-
         </div>
     </div>
+</div>
+<div class="popup_info" id="mistakes_popup_info">
+    <strong id="popup_info_text">
+      <?php print t('Popup Info'); ?>
+    </strong>
 </div>

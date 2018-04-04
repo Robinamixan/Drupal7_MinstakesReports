@@ -12,6 +12,14 @@
       $('#mistakes_popup_panel').show();
     }
 
+    function PopUpShowInfo(text) {
+      $('#mistakes_popup_info').text(text);
+      $("#mistakes_popup_info").fadeIn();
+      setTimeout(function () {
+        $("#mistakes_popup_info").fadeOut();
+      }, 2000);
+    }
+
     function selectionIsInSingleField(currentSelection, fieldClassName) {
       return !((!$(currentSelection.startContainer.parentElement).parents(fieldClassName).length) ||
           (!$(currentSelection.endContainer.parentElement).parents(fieldClassName).length));
@@ -53,10 +61,10 @@
       return true;
     }
 
-    function selectionIsValid(selectionText) {
-      if (selectionText.length > selectedField.maxLength) {
+    function selectionIsValid(selectionInfo) {
+      if (selectionInfo['length'] > selectedField.maxLength) {
         var text = 'selected text is too big';
-        var report_current = ' ( current - ' + selectionText.length;
+        var report_current = ' ( current - ' + selectionInfo['length'];
         var report_max = ', max - ' + selectedField.maxLength + ')';
         alert(text + report_current + report_max);
         return false;
@@ -66,44 +74,61 @@
     }
 
     function getSelectionInfo() {
-      var selectedText = '';
-      var $container;
+      var selectedText = [];
+      var textLeft = [];
+      var textRight = [];
+      var $containers = [];
+      var text = '';
+      var select;
+      var allTextLenght = 0;
+
       if (typeof window.getSelection !== 'undefined') {
         var sel = window.getSelection();
         if (sel.rangeCount) {
-          if (sel.baseNode.parentNode.id !== 'content') {
-            $container = document.createElement('div');
+          if (sel.anchorNode.parentNode.id !== 'content') {
+
             for (var i = 0, len = sel.rangeCount; i < len; ++i) {
-              $container.appendChild(sel.getRangeAt(i).cloneContents());
+              $containers.push(document.createElement('div'));
+              $containers[i].appendChild(sel.getRangeAt(i).cloneContents());
+
+              text = $containers[i].innerHTML;
+
+              selectedText.push(text.replace(/<[^>]+>/g, ''));
+              if (count_space(text) < 2) {
+                select = sel.getRangeAt(i);
+                var textInLeft = select.startContainer;
+                var startposition = select.startOffset;
+                var textInRight = select.endContainer;
+                var endposition = select.endOffset;
+                var wordInLeft = getWordsInLeft($(textInLeft).text(), startposition - 1, 3);
+                var wordInRight = getWordsInRight($(textInRight).text(), endposition, 3);
+                textLeft.push(wordInLeft.replace(/<[^>]+>/g, ''));
+                textRight.push(wordInRight.replace(/<[^>]+>/g, ''));
+              } else {
+                textLeft.push('');
+                textRight.push('');
+              }
             }
-            selectedText = $container.innerHTML;
           }
         }
       }
 
-      if (count_space(selectedText) < 2) {
-        var select = window.getSelection().getRangeAt(0);
-        var textInLeft = select.startContainer;
-        var startposition = select.startOffset;
-        var textInRight = select.endContainer;
-        var endposition = select.endOffset;
-        var wordInLeft = getWordsInLeft($(textInLeft).text(), startposition - 1, 3);
-        var wordInRight = getWordsInRight($(textInRight).text(), endposition, 3);
-        return {
-          'text': selectedText,
-          'length': selectedText.length,
-          'textLeft': wordInLeft,
-          'textRight': wordInRight
-        };
-      }
 
+      for (var i = 0; i < selectedText.length; ++i) {
+        allTextLenght += selectedText[i].length;
+      }
+      console.log(selectedText);
+      console.log(allTextLenght);
+      console.log(textLeft);
+      console.log(textRight);
       return {
         'text': selectedText,
-        'length': selectedText.length,
-        'textLeft': '',
-        'textRight': ''
+        'length': allTextLenght,
+        'textLeft': textLeft,
+        'textRight': textRight
       };
     }
+
 
     function getWordsInLeft(text, leftPosition, amountWords) {
       var res = 0;
@@ -161,27 +186,33 @@
       if (keyCode === 10 || keyCode === 13) {
         if (e.ctrlKey) {
           selectionInfo = getSelectionInfo();
-          selectionInfo['text'] = selectionInfo['text'].replace(/<[^>]+>/g, '');
+          selectionInfo['text'] = selectionInfo['text'];
 
-          if (selectionInfo['text']) {
+          if (selectionInfo['text'][0]) {
             currentSelection = getSelection();
 
             if (selectionHasValidLocation(currentSelection)) {
-              if (selectionIsValid(selectionInfo['text'])) {
+              if (selectionIsValid(selectionInfo)) {
+                $('.mistakes_popup_text').html('');
+                selectedText = '';
+                for (var i = 0; i < selectionInfo['text'].length; ++i) {
 
-                if (selectionInfo['textLeft'] !== '') {
-                  mainText = '<span style="text-decoration: underline;">' + selectionInfo['text'] + '</span>';
-                  inLeftText = selectionInfo['textLeft'];
-                  inRightText = selectionInfo['textRight'];
-                  selectedText = inLeftText + selectionInfo['text'] + inRightText;
-                  $('.mistakes_popup_text').html(inLeftText + mainText + inRightText);
-                }
-                else {
-                  selectedText = selectionInfo['text'];
-                  $('.mistakes_popup_text').html(selectionInfo['text']);
+                  if (selectionInfo['textLeft'][i] !== '') {
+                    mainText = '<span style="text-decoration: underline;">' + selectionInfo['text'][i] + '</span>';
+                    inLeftText = selectionInfo['textLeft'][i];
+                    inRightText = selectionInfo['textRight'][i] + '<br>';
+                    selectedText += inLeftText + '*' + selectionInfo['text'][i] + '*' + inRightText + "|";
+                    $('.mistakes_popup_text').append(inLeftText + mainText + inRightText);
+                  }
+                  else {
+                    selectedText += selectionInfo['text'][i] + "|";
+                    $('.mistakes_popup_text').append(selectionInfo['text'][i]);
+                  }
+
+                  $('#popup_title').text(selectedField['reportText']);
+
                 }
 
-                $('#popup_title').text(selectedField['reportText']);
 
                 PopUpShow();
               }
@@ -209,29 +240,39 @@
     });
 
     $('#popup_send').click(function () {
-      var objectLink = $('head').find('link[rel="shortlink"]').attr('href');
-      var objectType = objectLink.split('/')[1];
-      var objectId = objectLink.split('/')[2];
+      // var test = confirm("Send Report?");
+      var test = true;
+      if (test) {
+        var objectLink = $('head').find('link[rel="shortlink"]').attr('href');
+        var objectType = objectLink.split('/')[1];
+        var objectId = objectLink.split('/')[2];
 
-      $.ajax({
-        url: Drupal.settings.textMistakesReportsAjax.sendReportUrl,
-        type: 'POST',
-        data: {
-          'objectType': objectType,
-          'objectId': objectId,
-          'objectLink': objectLink,
-          'fieldName': selectedField.fieldName,
-          'selectedText': selectedText,
-          'userId': Drupal.settings.textMistakesReportsUser.userId
-        },
-        dataType: 'JSON',
-        success: function (data) {
-          data = $.parseJSON(data);
-          if (data['condition'] === 'failure') {
-            alert(data['errorText']);
+
+
+        $.ajax({
+          url: Drupal.settings.textMistakesReportsAjax.sendReportUrl,
+          type: 'POST',
+          data: {
+            'objectType': objectType,
+            'objectId': objectId,
+            'objectLink': objectLink,
+            'fieldName': selectedField.fieldName,
+            'selectedText': selectedText,
+            'userId': Drupal.settings.textMistakesReportsUser.userId
+          },
+          dataType: 'JSON',
+          success: function (data) {
+            data = $.parseJSON(data);
+            if (data['condition'] === 'failure') {
+              alert(data['errorText']);
+            }
+            else {
+              PopUpShowInfo('Report sent!');
+            }
           }
-        }
-      });
+        });
+      }
+
       PopUpHide();
     });
   })

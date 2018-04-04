@@ -4,6 +4,21 @@
     var currentPage = 0;
     var maxPage = Drupal.settings.textMistakesReportsAjax.gridMaxPage;
 
+    setButtonsPagination();
+
+    function setButtonsPagination() {
+      currentPage = parseInt(currentPage);
+      $('#grid_current_page').text(currentPage + 1);
+
+      if (currentPage === 0) {
+        $('#grid_btn_back_page').attr("disabled", true);
+      }
+
+      if (maxPage === 1) {
+        $('#grid_btn_next_page').attr("disabled", true);
+      }
+    }
+
     function sendAjaxDelete($element) {
       var reportId = $($element).attr('id').split('_')[2];
       var $container = $($element).parents('#report_mistake_grid').parent();
@@ -20,7 +35,7 @@
           $($container).html(data['htmlGrid']);
           maxPage = data['maxPage'];
           currentPage = data['currentPage'];
-
+          setButtonsPagination();
         }
       });
     }
@@ -43,6 +58,11 @@
             maxPage = data['maxPage'];
 
             currentPage++;
+            $('#grid_current_page').text(currentPage + 1);
+
+            if (currentPage + 1 === maxPage) {
+              $($container).find('#grid_btn_next_page').attr("disabled", true);
+            }
           }
         });
       }
@@ -66,6 +86,11 @@
             maxPage = $data['maxPage'];
 
             currentPage--;
+            $('#grid_current_page').text(currentPage + 1);
+
+            if (currentPage === 0) {
+              $($container).find('#grid_btn_back_page').attr("disabled", true);
+            }
           }
         });
       }

@@ -3,7 +3,7 @@
 /**
  * Amount records on page of report grid
  */
-const RECORD_PER_PAGE = 2;
+const RECORD_PER_PAGE = 4;
 
 /**
  * Implements hook_help().
@@ -25,9 +25,7 @@ function text_mistakes_reports_block_info() {
   $blocks['text_mistakes_reports_popup'] = [
     'info' => t('Sender of Text Mistakes Reports'),
     'status' => TRUE,
-    'region' => 'Content',
-    'visibility' => BLOCK_VISIBILITY_LISTED,
-    'pages' => 'node/*',
+    'region' => 'content',
   ];
   return $blocks;
 }
@@ -78,7 +76,6 @@ function text_mistakes_reports_block_view($delta = '') {
  * Implements hook_theme().
  */
 function text_mistakes_reports_theme($existing, $type, $theme, $path) {
-  $gridDeleteUrl = ['gridDeleteUrl' => url('text_mistakes_reports/ajax/grid/delete')];
   return [
     'text_mistakes_reports_popup_theme' => [
       'variables' => [],
@@ -93,7 +90,6 @@ function text_mistakes_reports_theme($existing, $type, $theme, $path) {
       'template' => 'text_mistakes_reports_grid',
       'path' => drupal_get_path('module', 'text_mistakes_reports'),
     ],
-
   ];
 }
 
@@ -236,14 +232,13 @@ function text_mistakes_reports_ajax_report() {
 
   $fieldNameLabel = field_info_instance($entityType, $fieldNameId,
     $bundle)['label'];
-  $emailReceiver = field_info_field($fieldNameId)['text_mistakes_reports_email_receiver'];
+  $emailReceiver = field_info_field($fieldNameId)['settings']['text_mistakes_reports_email_receiver'];
 
   $currentDate = new DateTime();
   $userIP = ip_address();
   $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
 
-  // +1 current report
-  if (text_mistakes_reports_get_amount_reports_by_ip($userIP) + 1 <= (int) $maxAmountReportsToday) {
+  if ((text_mistakes_reports_get_amount_reports_by_ip($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday))) {
 
     $username = $userId ? user_load($userId)->name : 'anonymous';
 
@@ -281,7 +276,7 @@ function text_mistakes_reports_ajax_report() {
             'Username' => $username,
             'User IP' => $userIP,
           ],
-          $from = variable_get('smtp_username'),
+          $from = variable_get('smtp_from'),
           $send = TRUE
         );
       }
@@ -451,6 +446,7 @@ function text_mistakes_reports_form($form, &$form_state) {
     '#default_value' => variable_get('text_mistakes_reports_email_receiver',
       variable_get('site_mail', '')),
     '#required' => TRUE,
+    '#element_validate' => ['text_mistakes_reports_email_validate'],
   ];
 
   $form['text_mistakes_reports_max_text_length'] = [
@@ -469,7 +465,7 @@ function text_mistakes_reports_form($form, &$form_state) {
     '#type' => 'textarea',
     '#title' => t('Report Text'),
     '#default_value' => variable_get('text_mistakes_reports_report_text', ''),
-    '#description' => t('The maximum size of text that can be to report'),
+    '#description' => t('Text that will show in popup'),
     '#required' => TRUE,
   ];
 
@@ -479,9 +475,8 @@ function text_mistakes_reports_form($form, &$form_state) {
     '#default_value' => variable_get('text_mistakes_reports_max_reports', 3),
     '#size' => 4,
     '#maxlength' => 4,
-    '#description' => t('The maximum number of reports to send with one IP'),
+    '#description' => t('The maximum number of reports to send with one IP. If empty - unlimited'),
     '#element_validate' => ['element_validate_integer_positive'],
-    '#required' => TRUE,
   ];
 
   return system_settings_form($form);
@@ -499,7 +494,7 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
   $defaultValue = text_mistakes_reports_get_default_values($field);
 
   if (text_mistakes_reports_is_valid_field_type($field['type'])) {
-    $form['field']['text_mistakes_reports_enabled'] = [
+    $form['field']['settings']['text_mistakes_reports_enabled'] = [
       '#type' => 'select',
       '#title' => t('Enable "Text Mistakes Reports" Module'),
       '#options' => [
@@ -509,13 +504,14 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
       '#default_value' => $defaultValue['enabled'],
     ];
 
-    $form['field']['text_mistakes_reports_email_receiver'] = [
+    $form['field']['settings']['text_mistakes_reports_email_receiver'] = [
       '#type' => 'textfield',
       '#title' => t('Email where sending reports'),
       '#default_value' => $defaultValue['email_receiver'],
+      '#element_validate' => ['text_mistakes_reports_email_validate'],
     ];
 
-    $form['field']['text_mistakes_reports_max_text_length'] = [
+    $form['field']['settings']['text_mistakes_reports_max_text_length'] = [
       '#type' => 'textfield',
       '#title' => t('Maximum size of text length'),
       '#default_value' => $defaultValue['max_text_length'],
@@ -523,12 +519,44 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
       '#element_validate' => ['element_validate_integer_positive'],
     ];
 
-    $form['field']['text_mistakes_reports_report_text'] = [
+    $form['field']['settings']['text_mistakes_reports_report_text'] = [
       '#type' => 'textarea',
       '#title' => t('Report Text'),
       '#default_value' => $defaultValue['report_text'],
-      '#description' => t('The maximum size of text that can be to report'),
+      '#description' => t('Text that will show in popup'),
     ];
+  }
+}
+
+/**
+ * Implements hook_field_info_alter().
+ *
+ * @param $info
+ */
+function text_mistakes_reports_field_info_alter(&$info) {
+  foreach ($info as $field_type => $field_type_info) {
+    if (text_mistakes_reports_is_valid_field_type($field_type)) {
+      $info[$field_type]['settings'] += [
+        'text_mistakes_reports_enabled' => '1',
+        'text_mistakes_reports_email_receiver' => variable_get('text_mistakes_reports_email_receiver'),
+        'text_mistakes_reports_max_text_length' => variable_get('text_mistakes_reports_max_text_length'),
+        'text_mistakes_reports_report_text' => variable_get('text_mistakes_reports_report_text'),
+      ];
+    }
+  }
+}
+
+/**
+ * Validation for email fields
+ *
+ * @param $element
+ * @param $form_state
+ * @param $form
+ */
+function text_mistakes_reports_email_validate($element, &$form_state, $form) {
+  $value = $element['#value'];
+  if (!valid_email_address($value)) {
+    form_error($element, t('Please enter a valid email address.'));
   }
 }
 
@@ -546,21 +574,21 @@ function text_mistakes_reports_get_default_values($field) {
   $globalValueMaxTextLength = variable_get('text_mistakes_reports_max_text_length');
   $globalValueReportText = variable_get('text_mistakes_reports_report_text');
 
-  $defaultValue['email_receiver'] = !empty($field['text_mistakes_reports_email_receiver']) ?
-    $field['text_mistakes_reports_email_receiver'] :
+  $defaultValue['email_receiver'] = !empty($field['settings']['text_mistakes_reports_email_receiver']) ?
+    $field['settings']['text_mistakes_reports_email_receiver'] :
     $globalValueReceiverEmail;
 
-  $defaultValue['max_text_length'] = !empty($field['text_mistakes_reports_max_text_length']) ?
-    $field['text_mistakes_reports_max_text_length'] :
+  $defaultValue['max_text_length'] = !empty($field['settings']['text_mistakes_reports_max_text_length']) ?
+    $field['settings']['text_mistakes_reports_max_text_length'] :
     $globalValueMaxTextLength;
 
-  $defaultValue['report_text'] = !empty($field['text_mistakes_reports_report_text']) ?
-    $field['text_mistakes_reports_report_text'] :
+  $defaultValue['report_text'] = !empty($field['settings']['text_mistakes_reports_report_text']) ?
+    $field['settings']['text_mistakes_reports_report_text'] :
     $globalValueReportText;
 
   $defaultValue['enabled'] = key_exists('text_mistakes_reports_enabled',
-    $field) ?
-    $field['text_mistakes_reports_enabled'] :
+    $field['settings']) ?
+    $field['settings']['text_mistakes_reports_enabled'] :
     1;
 
   return $defaultValue;
@@ -576,17 +604,16 @@ function text_mistakes_reports_get_fields_settings_for_page() {
   $allFields = field_info_fields();
   foreach ($allFields as $field) {
     if ((text_mistakes_reports_is_valid_field_type($field['type'])) && ($field['field_name'] !== 'comment_body')) {
-      if (key_exists('text_mistakes_reports_enabled', $field)) {
-        if ($field['text_mistakes_reports_enabled']) {
+      if (key_exists('text_mistakes_reports_enabled', $field['settings'])) {
+        if ($field['settings']['text_mistakes_reports_enabled']) {
           $observedFields[$field['field_name']]['fieldName'] = $field['field_name'];
-          $observedFields[$field['field_name']]['receiverEmail'] = $field['text_mistakes_reports_email_receiver'];
-          $observedFields[$field['field_name']]['maxLength'] = $field['text_mistakes_reports_max_text_length'];
-          $observedFields[$field['field_name']]['reportText'] = $field['text_mistakes_reports_report_text'];
+          $observedFields[$field['field_name']]['receiverEmail'] = $field['settings']['text_mistakes_reports_email_receiver'];
+          $observedFields[$field['field_name']]['maxLength'] = $field['settings']['text_mistakes_reports_max_text_length'];
+          $observedFields[$field['field_name']]['reportText'] = $field['settings']['text_mistakes_reports_report_text'];
         }
       }
     }
   }
-
   return $observedFields;
 }
 
@@ -660,7 +687,8 @@ function text_mistakes_reports_convert_records_to_needed_view($records) {
     $userId = $record->user_id;
     $ipClien = $record->user_ip;
 
-    $entityLink = $_SERVER['HTTP_HOST'] . url($entityType . '/' . $entityId);
+    $entityLink = url($entityType . '/' . $entityId . '/edit');
+
 
     $entity = entity_load($entityType, [(int) $entityId]);
     $bundle = $entity[$entityId]->type;

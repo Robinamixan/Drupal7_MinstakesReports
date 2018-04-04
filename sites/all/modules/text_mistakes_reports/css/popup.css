@@ -27,6 +27,22 @@
     align-items: center;
 }
 
+#mistakes_popup_info{
+    overflow:hidden;
+    position:fixed;
+    top:8%;
+    left: auto;
+    right: auto;
+    z-index: 800;
+    min-width: 60px;
+    min-height: 20px;
+    padding: 10px;
+    background-color: #FFFFFF;
+    border: black solid 1px;
+    border-radius:5px;
+    display: none;
+}
+
 #mistakes_popup_panel .popup_text_container{
     width: 100%;
     padding: 5px;
