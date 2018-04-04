@@ -133,10 +133,23 @@ function text_mistakes_reports_load_multiple(
   $conditions = [],
   $reset = FALSE
 ) {
-  if ($ids) {
-    return entity_load('text_mistakes_report', $ids, $conditions, $reset);
+  $query = db_select('text_mistakes_report', 'r');
+  $query->fields('r', [
+    'report_id',
+    'entity_id',
+    'revision_id',
+    'entity_type',
+    'date_create',
+    'field_name',
+    'selected_text',
+    'user_id',
+    'user_ip',
+  ]);
+  foreach ($ids as $id) {
+    $query->condition('report_id', $id);
   }
-  return entity_load('text_mistakes_report');
+  $rows = $query->execute()->fetchAll();
+  return $rows;
 }
 
 /**
@@ -186,12 +199,10 @@ function text_mistakes_reports_delete_multiple($ids = []) {
         ->condition('report_id', $id)
         ->execute();
     }
-    cache_clear_all('*', 'cache', TRUE);
   }
   else {
     db_delete('text_mistakes_report')
       ->execute();
-    cache_clear_all('*', 'cache', TRUE);
   }
 }
 
@@ -205,7 +216,6 @@ function text_mistakes_reports_delete_multiple($ids = []) {
 function text_mistakes_reports_save($values = []) {
   try {
     db_insert('text_mistakes_report')->fields($values)->execute();
-    cache_clear_all('*', 'cache', TRUE);
   } catch (Exception $e) {
     return FALSE;
   }
