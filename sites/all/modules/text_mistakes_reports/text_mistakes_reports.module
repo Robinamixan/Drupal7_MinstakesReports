@@ -672,6 +672,13 @@ function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
   return text_mistakes_reports_convert_records_to_needed_view($records);
 }
 
+/**
+ * Checking records if its entity not exists that records deleting
+ *
+ * @param $records
+ *
+ * @return array
+ */
 function text_mistakes_reports_check_records_entity_exist($records) {
   $validRecords = [];
   foreach ($records as $index => $record) {
