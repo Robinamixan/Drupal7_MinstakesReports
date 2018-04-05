@@ -207,12 +207,15 @@ function text_mistakes_reports_ajax_grid_delete() {
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
 
   if (!$rows) {
-    while ($currentPage >= 0) {
+    while ($currentPage > 0) {
       $currentPage--;
       $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
       if ($rows) {
         break;
       }
+    }
+    if (!$rows) {
+      $rows = text_mistakes_reports_get_reports_rows_from_table();
     }
   }
 
