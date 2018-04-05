@@ -134,7 +134,7 @@ function text_mistakes_reports_ajax_report() {
   $userIP = ip_address();
   $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
 
-  if (($entityController->get_amount_reports_by_ip($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday))) {
+  if (($entityController->getAmountReportsByIP($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday))) {
 
     $username = $userId ? user_load($userId)->name : 'anonymous';
 
@@ -216,7 +216,7 @@ function text_mistakes_reports_ajax_grid_delete() {
     }
   }
 
-  $amountReports = $entityController->get_amount_reports();
+  $amountReports = $entityController->getAmountReports();
 
   drupal_json_output([
     'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
@@ -239,7 +239,7 @@ function text_mistakes_reports_ajax_grid_get_page() {
   $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
 
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-  $amountReports = $entityController->get_amount_reports();
+  $amountReports = $entityController->getAmountReports();
 
   drupal_json_output([
     'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
@@ -323,7 +323,7 @@ function text_mistakes_reports_menu() {
 function text_mistakes_reports_reports_page() {
   /** @var false|TextMistakesReportEntityController $entityController */
   $entityController = entity_get_controller('text_mistakes_report');
-  $amountReports = $entityController->get_amount_reports();
+  $amountReports = $entityController->getAmountReports();
 
   drupal_add_js(drupal_get_path('module',
       'text_mistakes_reports') . '/js/grid.js');
@@ -532,7 +532,7 @@ function text_mistakes_reports_get_fields_settings_for_page() {
 function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
   /** @var false|TextMistakesReportEntityController $entityController */
   $entityController = entity_get_controller('text_mistakes_report');
-  $records = $entityController->load_interval($currentPage * RECORD_PER_PAGE,
+  $records = $entityController->loadInInterval($currentPage * RECORD_PER_PAGE,
     RECORD_PER_PAGE);
 
   $records = text_mistakes_reports_check_records_entity_exist($records);

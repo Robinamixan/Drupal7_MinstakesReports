@@ -64,7 +64,7 @@ class TextMistakesReportEntityController implements DrupalEntityControllerInterf
    *
    * @return array
    */
-  public function load_interval($startNumber, $amount) {
+  public function loadInInterval($startNumber, $amount) {
     $query = db_select('text_mistakes_report', 'r',
       ['fetch' => 'TextMistakesReportEntity',]);
     $query->fields('r', [
@@ -110,7 +110,7 @@ class TextMistakesReportEntityController implements DrupalEntityControllerInterf
    *
    * @return int
    */
-  public function get_amount_reports() {
+  public function getAmountReports() {
     $query = db_select('text_mistakes_report', 'r');
     $query->fields('r', [
       'report_id',
@@ -126,7 +126,7 @@ class TextMistakesReportEntityController implements DrupalEntityControllerInterf
    *
    * @return int
    */
-  function get_amount_reports_by_ip($userIP) {
+  function getAmountReportsByIP($userIP) {
     $todayDate = new DateTime();
     $query = db_select('text_mistakes_report', 'r');
     $query->fields('r', [
