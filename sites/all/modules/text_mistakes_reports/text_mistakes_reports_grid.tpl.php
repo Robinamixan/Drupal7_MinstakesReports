@@ -30,9 +30,7 @@
                           <?php foreach (explode('|', $value) as $string): ?>
                             <?php if ($string !== ''): ?>
                                 <span>
-                                    <
-                                    <?php print $string; ?>
-                                    >
+                                    <?php print '{' . $string . '}';?>
                                 </span>
                             <?php endif; ?>
 
@@ -56,8 +54,9 @@
           </tbody>
       </table>
       <button id="grid_btn_back_page">Back</button>
-      <strong><?php print t('Page: ') ?><span
-                  id="grid_current_page"></span></strong>
+      <strong><?php print t('Page: ') ?><span id="grid_current_page"></span>
+
+      </strong>
       <button id="grid_btn_next_page">Next</button>
   <?php else: ?>
       <span><?php print t('There are not reports'); ?></span>

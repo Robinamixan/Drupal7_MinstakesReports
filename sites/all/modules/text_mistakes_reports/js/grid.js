@@ -14,7 +14,7 @@
         $('#grid_btn_back_page').attr("disabled", true);
       }
 
-      if (maxPage === 1) {
+      if (maxPage === currentPage + 1) {
         $('#grid_btn_next_page').attr("disabled", true);
       }
     }

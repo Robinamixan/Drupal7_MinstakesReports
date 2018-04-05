@@ -14,9 +14,9 @@
 
     function PopUpShowInfo(text) {
       $('#mistakes_popup_info').text(text);
-      $("#mistakes_popup_info").fadeIn();
+      $('#mistakes_popup_info').fadeIn();
       setTimeout(function () {
-        $("#mistakes_popup_info").fadeOut();
+        $('#mistakes_popup_info').fadeOut();
       }, 2000);
     }
 
@@ -113,14 +113,10 @@
         }
       }
 
-
       for (var i = 0; i < selectedText.length; ++i) {
         allTextLenght += selectedText[i].length;
       }
-      console.log(selectedText);
-      console.log(allTextLenght);
-      console.log(textLeft);
-      console.log(textRight);
+
       return {
         'text': selectedText,
         'length': allTextLenght,
@@ -200,13 +196,13 @@
                   if (selectionInfo['textLeft'][i] !== '') {
                     mainText = '<span style="text-decoration: underline;">' + selectionInfo['text'][i] + '</span>';
                     inLeftText = selectionInfo['textLeft'][i];
-                    inRightText = selectionInfo['textRight'][i] + '<br>';
-                    selectedText += inLeftText + '*' + selectionInfo['text'][i] + '*' + inRightText + "|";
-                    $('.mistakes_popup_text').append(inLeftText + mainText + inRightText);
+                    inRightText = selectionInfo['textRight'][i];
+                    selectedText += inLeftText + '*' + selectionInfo['text'][i] + '*' + inRightText + '|';
+                    $('.mistakes_popup_text').append(inLeftText + mainText + inRightText + '<br>');
                   }
                   else {
-                    selectedText += selectionInfo['text'][i] + "|";
-                    $('.mistakes_popup_text').append(selectionInfo['text'][i]);
+                    selectedText += selectionInfo['text'][i] + '|';
+                    $('.mistakes_popup_text').append(selectionInfo['text'][i] + '<br>');
                   }
 
                   $('#popup_title').text(selectedField['reportText']);
@@ -240,14 +236,11 @@
     });
 
     $('#popup_send').click(function () {
-      // var test = confirm("Send Report?");
       var test = true;
       if (test) {
         var objectLink = $('head').find('link[rel="shortlink"]').attr('href');
         var objectType = objectLink.split('/')[1];
         var objectId = objectLink.split('/')[2];
-
-
 
         $.ajax({
           url: Drupal.settings.textMistakesReportsAjax.sendReportUrl,
@@ -255,7 +248,6 @@
           data: {
             'objectType': objectType,
             'objectId': objectId,
-            'objectLink': objectLink,
             'fieldName': selectedField.fieldName,
             'selectedText': selectedText,
             'userId': Drupal.settings.textMistakesReportsUser.userId

@@ -101,125 +101,13 @@ function text_mistakes_reports_entity_info() {
     'text_mistakes_report' => [
       'label' => t('Text Mistakes Report'),
       'base table' => 'text_mistakes_report',
+      'controller class' => 'TextMistakesReportEntityController',
       'entity keys' => [
         'id' => 'report_id',
       ],
+      'load hook' => 'text_mistakes_reports_load',
     ],
   ];
-}
-
-/**
- * Load a single record.
- *
- * @param $id
- *
- * @return array
- */
-function text_mistakes_reports_load($id, $reset = FALSE) {
-  return text_mistakes_reports_load_multiple([$id], [], $reset);
-}
-
-/**
- * Load multiple records from array $ids.
- *
- * @param array $ids
- * @param array $conditions
- * @param bool $reset
- *
- * @return array
- */
-function text_mistakes_reports_load_multiple(
-  $ids = [],
-  $conditions = [],
-  $reset = FALSE
-) {
-  $query = db_select('text_mistakes_report', 'r');
-  $query->fields('r', [
-    'report_id',
-    'entity_id',
-    'revision_id',
-    'entity_type',
-    'date_create',
-    'field_name',
-    'selected_text',
-    'user_id',
-    'user_ip',
-  ]);
-  foreach ($ids as $id) {
-    $query->condition('report_id', $id);
-  }
-  $rows = $query->execute()->fetchAll();
-  return $rows;
-}
-
-/**
- * Load multiple records in interval.
- *
- * @param $startNumber
- * @param $amount
- *
- * @return array
- */
-function text_mistakes_reports_load_multiple_interval($startNumber, $amount) {
-  $query = db_select('text_mistakes_report', 'r');
-  $query->fields('r', [
-    'report_id',
-    'entity_id',
-    'revision_id',
-    'entity_type',
-    'date_create',
-    'field_name',
-    'selected_text',
-    'user_id',
-    'user_ip',
-  ]);
-  $query->range($startNumber, $amount);
-  $rows = $query->execute()->fetchAll();
-  return $rows;
-}
-
-/**
- * Delete a single record.
- *
- * @param $id
- */
-function text_mistakes_reports_delete($id) {
-  text_mistakes_reports_delete_multiple([$id]);
-}
-
-/**
- * Delete multiple records from array $ids.
- *
- * @param array $ids
- */
-function text_mistakes_reports_delete_multiple($ids = []) {
-  if ($ids) {
-    foreach ($ids as $id) {
-      db_delete('text_mistakes_report')
-        ->condition('report_id', $id)
-        ->execute();
-    }
-  }
-  else {
-    db_delete('text_mistakes_report')
-      ->execute();
-  }
-}
-
-/**
- * Save a single record.
- *
- * @param array $values
- *
- * @return bool
- */
-function text_mistakes_reports_save($values = []) {
-  try {
-    db_insert('text_mistakes_report')->fields($values)->execute();
-  } catch (Exception $e) {
-    return FALSE;
-  }
-  return TRUE;
 }
 
 /**
@@ -227,32 +115,30 @@ function text_mistakes_reports_save($values = []) {
  * sending email to receiver and sending response of process condition
  */
 function text_mistakes_reports_ajax_report() {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
   $entityType = (isset($_POST['objectType']) ? $_POST['objectType'] : NULL);
   $entityId = (isset($_POST['objectId']) ? $_POST['objectId'] : NULL);
-  $entityLink = (isset($_POST['objectLink']) ? $_POST['objectLink'] : NULL);
   $fieldNameId = (isset($_POST['fieldName']) ? $_POST['fieldName'] : NULL);
   $selectedText = (isset($_POST['selectedText']) ? $_POST['selectedText'] : NULL);
   $userId = (isset($_POST['userId']) ? $_POST['userId'] : NULL);
 
-  $entityLink = $_SERVER['HTTP_HOST'] . url($entityType . '/' . $entityId);
   $entity = entity_load($entityType, [(int) $entityId]);
-  $bundle = $entity[$entityId]->type;
 
   $revisionId = $entity[$entityId]->vid ? $entity[$entityId]->vid : '';
 
-  $fieldNameLabel = field_info_instance($entityType, $fieldNameId,
-    $bundle)['label'];
   $emailReceiver = field_info_field($fieldNameId)['settings']['text_mistakes_reports_email_receiver'];
 
   $currentDate = new DateTime();
   $userIP = ip_address();
   $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
 
-  if ((text_mistakes_reports_get_amount_reports_by_ip($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday))) {
+  if (($entityController->get_amount_reports_by_ip($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday))) {
 
     $username = $userId ? user_load($userId)->name : 'anonymous';
 
-    $saved = text_mistakes_reports_save([
+    $values = [
       'entity_id' => $entityId,
       'revision_id' => $revisionId,
       'entity_type' => $entityType,
@@ -261,12 +147,18 @@ function text_mistakes_reports_ajax_report() {
       'selected_text' => $selectedText,
       'user_id' => $userId,
       'user_ip' => $userIP,
-    ]);
+    ];
+
+    $record = new TextMistakesReportEntity();
+    $record->setValues($values);
+    $saved = $entityController->save($record);
 
     if ($saved) {
       drupal_json_output([
         'condition' => 'success',
       ]);
+
+      $params = text_mistakes_reports_convert_records_to_needed_view([$record])[0];
 
       if (valid_email_address($emailReceiver)) {
         drupal_mail(
@@ -274,18 +166,7 @@ function text_mistakes_reports_ajax_report() {
           'mistake_report_mail',
           $emailReceiver,
           language_default(),
-          $params = [
-            'Entity ID' => $entityId,
-            'Revision ID' => $revisionId,
-            'Entity Type' => $entityType,
-            'Entity Link' => $entityLink,
-            'Date of Create' => $currentDate->format('Y-m-d H:i:s'),
-            'Field Name Label' => $fieldNameLabel,
-            'Field Name ID' => $fieldNameId,
-            'Selected Text' => $selectedText,
-            'Username' => $username,
-            'User IP' => $userIP,
-          ],
+          $params,
           $from = variable_get('smtp_from'),
           $send = TRUE
         );
@@ -318,7 +199,10 @@ function text_mistakes_reports_ajax_grid_delete() {
   $reportId = (isset($_POST['reportId']) ? $_POST['reportId'] : NULL);
   $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
 
-  text_mistakes_reports_delete($reportId);
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+  $entityController->delete([$reportId]);
+
 
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
 
@@ -332,7 +216,7 @@ function text_mistakes_reports_ajax_grid_delete() {
     }
   }
 
-  $amountReports = text_mistakes_reports_get_amount_reports();
+  $amountReports = $entityController->get_amount_reports();
 
   drupal_json_output([
     'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
@@ -349,10 +233,13 @@ function text_mistakes_reports_ajax_grid_delete() {
  * - maxPage - max amount of pages in report grid
  */
 function text_mistakes_reports_ajax_grid_get_page() {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
   $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
 
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-  $amountReports = text_mistakes_reports_get_amount_reports();
+  $amountReports = $entityController->get_amount_reports();
 
   drupal_json_output([
     'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
@@ -434,7 +321,9 @@ function text_mistakes_reports_menu() {
  * @throws \Exception
  */
 function text_mistakes_reports_reports_page() {
-  $amountReports = text_mistakes_reports_get_amount_reports();
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+  $amountReports = $entityController->get_amount_reports();
 
   drupal_add_js(drupal_get_path('module',
       'text_mistakes_reports') . '/js/grid.js');
@@ -634,41 +523,6 @@ function text_mistakes_reports_get_fields_settings_for_page() {
 }
 
 /**
- * Count amount of reports that user sent today
- *
- * @param $userIP
- *
- * @return int
- */
-function text_mistakes_reports_get_amount_reports_by_ip($userIP) {
-  $todayDate = new DateTime();
-  $query = db_select('text_mistakes_report', 'r');
-  $query->fields('r', [
-    'report_id',
-  ]);
-  $query->condition('user_ip', $userIP);
-  $query->condition('date_create', $todayDate->format('Y-m-d'), '>=');
-  $rows = $query->execute()->fetchAll();
-
-  return count($rows);
-}
-
-/**
- * Count amount of reports in table
- *
- * @return int
- */
-function text_mistakes_reports_get_amount_reports() {
-  $query = db_select('text_mistakes_report', 'r');
-  $query->fields('r', [
-    'report_id',
-  ]);
-  $rows = $query->execute()->fetchAll();
-
-  return count($rows);
-}
-
-/**
  * Getting reports for current page and converting them for view in grid
  *
  * @param int $currentPage
@@ -676,8 +530,11 @@ function text_mistakes_reports_get_amount_reports() {
  * @return array
  */
 function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
-  $records = text_mistakes_reports_load_multiple_interval($currentPage * RECORD_PER_PAGE,
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+  $records = $entityController->load_interval($currentPage * RECORD_PER_PAGE,
     RECORD_PER_PAGE);
+
   $records = text_mistakes_reports_check_records_entity_exist($records);
   return text_mistakes_reports_convert_records_to_needed_view($records);
 }
@@ -691,10 +548,15 @@ function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
  */
 function text_mistakes_reports_check_records_entity_exist($records) {
   $validRecords = [];
+
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
   foreach ($records as $index => $record) {
     if (!entity_load($record->entity_type, [(int) $record->entity_id])) {
-      text_mistakes_reports_delete($record->report_id);
-    } else {
+      $entityController->delete($record->report_id);
+    }
+    else {
       $validRecords[] = $record;
     }
   }
@@ -711,38 +573,28 @@ function text_mistakes_reports_check_records_entity_exist($records) {
 function text_mistakes_reports_convert_records_to_needed_view($records) {
   $correctRows = [];
 
-  foreach ($records as $index => $record) {
-    $reportId = $record->report_id;
-    $entityType = $record->entity_type;
-    $entityId = $record->entity_id;
-    $revisionId = $record->revision_id;
-    $createDate = $record->date_create;
-    $fieldNameId = $record->field_name;
-    $selectedText = $record->selected_text;
-    $userId = $record->user_id;
-    $ipClien = $record->user_ip;
+  foreach ($records as $record) {
+    $entityLink = url($record->entity_type . '/' . $record->entity_id . '/edit');
 
-    $entityLink = url($entityType . '/' . $entityId . '/edit');
-
-
-    $entity = entity_load($entityType, [(int) $entityId]);
-    $bundle = $entity[$entityId]->type;
-    $fieldNameLabel = field_info_instance($entityType, $fieldNameId,
+    $entity = entity_load($record->entity_type, [(int) $record->entity_id]);
+    $bundle = $entity[$record->entity_id]->type;
+    $fieldNameLabel = field_info_instance($record->entity_type,
+      $record->field_name,
       $bundle)['label'];
-    $username = $userId ? user_load($userId)->name : 'anonymous';
+    $username = $record->user_id ? user_load($record->user_id)->name : 'anonymous';
 
-    $correctRows[$index] = [
-      'Report ID' => $reportId,
-      'Entity ID' => $entityId,
-      'Revision ID' => $revisionId,
-      'Entity Type' => $entityType,
+    $correctRows[] = [
+      'Report ID' => $record->report_id,
+      'Entity ID' => $record->entity_id,
+      'Revision ID' => $record->revision_id,
+      'Entity Type' => $record->entity_type,
       'Entity Link' => $entityLink,
-      'Date of Create' => $createDate,
+      'Date of Create' => $record->date_create,
       'Field Name Label' => $fieldNameLabel,
-      'Field Name ID' => $fieldNameId,
-      'Selected Text' => $selectedText,
+      'Field Name ID' => $record->field_name,
+      'Selected Text' => $record->selected_text,
       'Username' => $username,
-      'User IP' => $ipClien,
+      'User IP' => $record->user_ip,
     ];
   }
 
