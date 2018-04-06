@@ -1,59 +1,9 @@
 <?php
 
-class TextMistakesReportEntityController implements DrupalEntityControllerInterface {
+class TextMistakesReportEntityController extends DrupalDefaultEntityController {
 
-  public function __construct() {
-
-  }
-
-  /**
-   * Resets the internal, static entity cache.
-   *
-   * @param $ids
-   *   (optional) If specified, the cache is reset for the entities with the
-   *   given ids only.
-   */
-  public function resetCache(array $ids = NULL) {
-    // TODO: Implement resetCache() method.
-  }
-
-  /**
-   * Loads one or more entities.
-   *
-   * @param $ids
-   *   An array of entity IDs, or FALSE to load all entities.
-   * @param $conditions
-   *   An array of conditions. Keys are field names on the entity's base table.
-   *   Values will be compared for equality. All the comparisons will be ANDed
-   *   together. This parameter is deprecated; use an EntityFieldQuery instead.
-   *
-   * @return
-   *   An array of entity objects indexed by their ids. When no results are
-   *   found, an empty array is returned.
-   */
-  public function load($ids = [], $conditions = []) {
-    $query = db_select('text_mistakes_report', 'r',
-      ['fetch' => 'TextMistakesReportEntity',]);
-    $query->fields('r', [
-      'report_id',
-      'entity_id',
-      'revision_id',
-      'entity_type',
-      'date_create',
-      'field_name',
-      'selected_text',
-      'user_id',
-      'user_ip',
-    ]);
-    if ($ids) {
-      $db_or = db_or();
-      foreach ($ids as $id) {
-        $db_or->condition('report_id', $id);
-      }
-      $query->condition($db_or);
-    }
-    $rows = $query->execute()->fetchAll();
-    return $rows;
+  public function __construct($entityType) {
+    parent::__construct($entityType);
   }
 
   /**
@@ -146,13 +96,6 @@ class TextMistakesReportEntityController implements DrupalEntityControllerInterf
    * @return bool
    */
   function save(TextMistakesReportEntity $record) {
-    try {
-      db_insert('text_mistakes_report')
-        ->fields($record->getValues())
-        ->execute();
-    } catch (Exception $e) {
-      return FALSE;
-    }
-    return TRUE;
+    return drupal_write_record('text_mistakes_report', $record);
   }
 }

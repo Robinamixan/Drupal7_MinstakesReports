@@ -3,6 +3,7 @@
 
     var selectedField;
     var selectedText;
+    var $selectedContent;
 
     function PopUpHide() {
       $('#mistakes_popup_panel').hide();
@@ -21,8 +22,36 @@
     }
 
     function selectionIsInSingleField(currentSelection, fieldClassName) {
-      return !((!$(currentSelection.startContainer.parentElement).parents(fieldClassName).length) ||
-          (!$(currentSelection.endContainer.parentElement).parents(fieldClassName).length));
+      var firstRange = currentSelection.getRangeAt(0);
+      var startParentField;
+      var endParentField;
+      var previousParentField = $(firstRange.startContainer.parentElement).parents(fieldClassName);
+      var rangeCurrent;
+
+      for (var i = 0; i < currentSelection.rangeCount; ++i) {
+        rangeCurrent = currentSelection.getRangeAt(i);
+        startParentField = $(rangeCurrent.startContainer.parentElement).parents(fieldClassName);
+        endParentField = $(rangeCurrent.endContainer.parentElement).parents(fieldClassName);
+
+        if ($(startParentField).length) {
+          if ($(startParentField)[0] === $(endParentField)[0]) {
+            if ($(startParentField)[0] !== $(previousParentField)[0]) {
+              return false;
+            }
+          }
+          else {
+            return false;
+          }
+        }
+        else {
+          return false;
+        }
+
+        previousParentField = startParentField;
+      }
+      $selectedContent = $(previousParentField).parent();
+
+      return true;
     }
 
     function selectionIsInAllowedField(currentSelection) {
@@ -33,14 +62,15 @@
       $.each(activeFields, function (index, field) {
         if (!allowed) {
           htmlName = getHtmlFieldName(field.fieldName);
-
           if (selectionIsInSingleField(currentSelection, htmlName)) {
+
             selectedField = field;
             allowed = true;
             return true;
           }
         }
       });
+
 
       return allowed;
     }
@@ -104,7 +134,8 @@
                 var wordInRight = getWordsInRight($(textInRight).text(), endposition, 3);
                 textLeft.push(wordInLeft.replace(/<[^>]+>/g, ''));
                 textRight.push(wordInRight.replace(/<[^>]+>/g, ''));
-              } else {
+              }
+              else {
                 textLeft.push('');
                 textRight.push('');
               }
@@ -168,7 +199,7 @@
     }
 
     function getSelection() {
-      return window.getSelection().getRangeAt(0);
+      return window.getSelection();
     }
 
     $('body').keydown(function (e, byScript) {
@@ -238,16 +269,13 @@
     $('#popup_send').click(function () {
       var test = true;
       if (test) {
-        var objectLink = $('head').find('link[rel="shortlink"]').attr('href');
-        var objectType = objectLink.split('/')[1];
-        var objectId = objectLink.split('/')[2];
+        var objectLink = $($selectedContent).parent().attr('id').replace(/-/g, "/");
 
         $.ajax({
           url: Drupal.settings.textMistakesReportsAjax.sendReportUrl,
           type: 'POST',
           data: {
-            'objectType': objectType,
-            'objectId': objectId,
+            'objectLink': objectLink,
             'fieldName': selectedField.fieldName,
             'selectedText': selectedText,
             'userId': Drupal.settings.textMistakesReportsUser.userId

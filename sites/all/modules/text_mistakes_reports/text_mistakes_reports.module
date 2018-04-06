@@ -9,11 +9,11 @@ const RECORD_PER_PAGE = 4;
  * Implements hook_help().
  */
 function text_mistakes_reports_help($path, $arg) {
-  $messagePart1 = 'A module that add popup to field types "long text" and "long text and summary"';
-  $messagePart2 = ' and it can send reports about mistakes to admin email.';
+  $message = 'A module that add popup to field types "long text" and "long text and summary"' .
+    ' and it can send reports about mistakes to admin email.';
   switch ($path) {
     case 'admin/help#text_mistakes_reports':
-      return t($messagePart1 . $messagePart2);
+      return t($message);
       break;
   }
 }
@@ -37,7 +37,7 @@ function text_mistakes_reports_block_view($delta = '') {
   global $user;
   switch ($delta) {
     case 'text_mistakes_reports_popup':
-      $fieldsSettings = text_mistakes_reports_get_fields_settings_for_page();
+      $fieldsSettings = module_invoke_all('get_fields_settings_for_page');
       $sendReportUrl = ['sendReportUrl' => url('text_mistakes_reports/ajax/send/report')];
       $userId = ['userId' => $user->uid];
 
@@ -49,7 +49,6 @@ function text_mistakes_reports_block_view($delta = '') {
           'css' => [
             drupal_get_path('module',
               'text_mistakes_reports') . '/css/popup.css',
-
           ],
           'js' => [
             drupal_get_path('module', 'text_mistakes_reports') . '/js/popup.js',
@@ -117,40 +116,26 @@ function text_mistakes_reports_entity_info() {
 function text_mistakes_reports_ajax_report() {
   /** @var false|TextMistakesReportEntityController $entityController */
   $entityController = entity_get_controller('text_mistakes_report');
+  $creator = new EntityCreator();
 
-  $entityType = (isset($_POST['objectType']) ? $_POST['objectType'] : NULL);
-  $entityId = (isset($_POST['objectId']) ? $_POST['objectId'] : NULL);
+  $entityLink = (isset($_POST['objectLink']) ? $_POST['objectLink'] : NULL);
   $fieldNameId = (isset($_POST['fieldName']) ? $_POST['fieldName'] : NULL);
   $selectedText = (isset($_POST['selectedText']) ? $_POST['selectedText'] : NULL);
   $userId = (isset($_POST['userId']) ? $_POST['userId'] : NULL);
 
-  $entity = entity_load($entityType, [(int) $entityId]);
-
-  $revisionId = $entity[$entityId]->vid ? $entity[$entityId]->vid : '';
-
-  $emailReceiver = field_info_field($fieldNameId)['settings']['text_mistakes_reports_email_receiver'];
-
-  $currentDate = new DateTime();
   $userIP = ip_address();
   $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
 
   if (($entityController->getAmountReportsByIP($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday))) {
 
-    $username = $userId ? user_load($userId)->name : 'anonymous';
+    $record = $creator->createTextMistakesReportEntity(
+      $entityLink,
+      $fieldNameId,
+      $selectedText,
+      $userId,
+      $userIP
+    );
 
-    $values = [
-      'entity_id' => $entityId,
-      'revision_id' => $revisionId,
-      'entity_type' => $entityType,
-      'date_create' => $currentDate->format('Y-m-d H:i:s'),
-      'field_name' => $fieldNameId,
-      'selected_text' => $selectedText,
-      'user_id' => $userId,
-      'user_ip' => $userIP,
-    ];
-
-    $record = new TextMistakesReportEntity();
-    $record->setValues($values);
     $saved = $entityController->save($record);
 
     if ($saved) {
@@ -158,6 +143,8 @@ function text_mistakes_reports_ajax_report() {
         'condition' => 'success',
       ]);
 
+      $fieldEmail = field_info_field($fieldNameId)['settings']['text_mistakes_reports_email_receiver'];
+      $emailReceiver = !empty($fieldEmail) ? $fieldEmail : variable_get('text_mistakes_reports_email_receiver');
       $params = text_mistakes_reports_convert_records_to_needed_view([$record])[0];
 
       if (valid_email_address($emailReceiver)) {
@@ -399,7 +386,7 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
   $form_id
 ) {
   $field = $form['#field'];
-  $defaultValue = text_mistakes_reports_get_default_values($field);
+  $defaultValue = text_mistakes_reports_get_field_values($field);
 
   if (text_mistakes_reports_is_valid_field_type($field['type'])) {
     $form['field']['settings']['text_mistakes_reports_enabled'] = [
@@ -446,9 +433,9 @@ function text_mistakes_reports_field_info_alter(&$info) {
     if (text_mistakes_reports_is_valid_field_type($field_type)) {
       $info[$field_type]['settings'] += [
         'text_mistakes_reports_enabled' => '1',
-        'text_mistakes_reports_email_receiver' => variable_get('text_mistakes_reports_email_receiver'),
-        'text_mistakes_reports_max_text_length' => variable_get('text_mistakes_reports_max_text_length'),
-        'text_mistakes_reports_report_text' => variable_get('text_mistakes_reports_report_text'),
+        'text_mistakes_reports_email_receiver' => '',
+        'text_mistakes_reports_max_text_length' => '',
+        'text_mistakes_reports_report_text' => '',
       ];
     }
   }
@@ -475,7 +462,7 @@ function text_mistakes_reports_email_validate($element, &$form_state, $form) {
  *
  * @return array
  */
-function text_mistakes_reports_get_default_values($field) {
+function text_mistakes_reports_get_field_values($field) {
   $defaultValue = [];
 
   $globalValueReceiverEmail = variable_get('text_mistakes_reports_email_receiver');
@@ -515,9 +502,10 @@ function text_mistakes_reports_get_fields_settings_for_page() {
       if (key_exists('text_mistakes_reports_enabled', $field['settings'])) {
         if ($field['settings']['text_mistakes_reports_enabled']) {
           $observedFields[$field['field_name']]['fieldName'] = $field['field_name'];
-          $observedFields[$field['field_name']]['receiverEmail'] = $field['settings']['text_mistakes_reports_email_receiver'];
-          $observedFields[$field['field_name']]['maxLength'] = $field['settings']['text_mistakes_reports_max_text_length'];
-          $observedFields[$field['field_name']]['reportText'] = $field['settings']['text_mistakes_reports_report_text'];
+          $values = text_mistakes_reports_get_field_values($field);
+          $observedFields[$field['field_name']]['receiverEmail'] = $values['email_receiver'];
+          $observedFields[$field['field_name']]['maxLength'] = $values['max_text_length'];
+          $observedFields[$field['field_name']]['reportText'] = $values['report_text'];
         }
       }
     }
@@ -577,19 +565,34 @@ function text_mistakes_reports_convert_records_to_needed_view($records) {
   $correctRows = [];
 
   foreach ($records as $record) {
-    $entityLink = url($record->entity_type . '/' . $record->entity_id . '/edit');
+    if ($record->entity_type === 'taxonomy_term') {
+      $entityLink = url(str_replace('_', '/',
+          $record->entity_type) . '/' . $record->entity_id . '/edit');
 
-    $entity = entity_load($record->entity_type, [(int) $record->entity_id]);
-    $bundle = $entity[$record->entity_id]->type;
-    $fieldNameLabel = field_info_instance($record->entity_type,
-      $record->field_name,
-      $bundle)['label'];
+      $term = entity_load($record->entity_type, [(int) $record->entity_id]);
+      $vocabularyId = $term[$record->entity_id]->vid;
+      $vocabulary = entity_load('taxonomy_vocabulary', [(int) $vocabularyId]);
+      $bundle = $vocabulary[$vocabularyId]->machine_name;
+      $fieldNameLabel = field_info_instance($record->entity_type,
+        $record->field_name,
+        $bundle)['label'];
+    }
+    else {
+      $entityLink = url($record->entity_type . '/' . $record->entity_id . '/edit');
+      $entity = entity_load($record->entity_type, [(int) $record->entity_id]);
+      $bundle = $entity[$record->entity_id]->type;
+      $fieldNameLabel = field_info_instance($record->entity_type,
+        $record->field_name,
+        $bundle)['label'];
+    }
+
+
     $username = $record->user_id ? user_load($record->user_id)->name : 'anonymous';
 
     $correctRows[] = [
       'Report ID' => $record->report_id,
       'Entity ID' => $record->entity_id,
-      'Revision ID' => $record->revision_id,
+      'Revision ID' => $record->revision_id !== '-1' ? $record->revision_id : '',
       'Entity Type' => $record->entity_type,
       'Entity Link' => $entityLink,
       'Date of Create' => $record->date_create,
@@ -613,4 +616,5 @@ function text_mistakes_reports_convert_records_to_needed_view($records) {
  */
 function text_mistakes_reports_is_valid_field_type($fieldType) {
   return ($fieldType === 'text_long') || ($fieldType === 'text_with_summary');
+
 }
