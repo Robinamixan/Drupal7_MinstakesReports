@@ -119,11 +119,18 @@ function text_mistakes_reports_uninstall() {
   foreach ($allFields as $field) {
     if (($field['type'] === 'text_long') || ($field['type'] === 'text_with_summary') && ($field['field_name'] !== 'comment_body')) {
       if (key_exists('text_mistakes_reports_enabled', $field['settings'])) {
-        $field['settings']['text_mistakes_reports_enabled'] = NULL;
-        $field['settings']['text_mistakes_reports_email_receiver'] = NULL;
-        $field['settings']['text_mistakes_reports_max_text_length'] = NULL;
-        $field['settings']['text_mistakes_reports_report_text'] = NULL;
-        field_update_field($field);
+        unset($field['settings']['text_mistakes_reports_enabled']);
+        unset($field['settings']['text_mistakes_reports_email_receiver']);
+        unset($field['settings']['text_mistakes_reports_max_text_length']);
+        unset($field['settings']['text_mistakes_reports_report_text']);
+
+        $data = $field;
+        unset($data['columns'], $data['field_name'], $data['type'], $data['locked'], $data['module'], $data['cardinality'], $data['active'], $data['deleted']);
+        unset($data['bundles']);
+        $field['data'] = $data;
+        $primary_key = array('id');
+        drupal_write_record('field_config', $field, $primary_key);
+        field_cache_clear();
       }
     }
   }
