@@ -140,25 +140,11 @@ function text_mistakes_reports_ajax_report() {
     }
 
     if ($saved) {
+      text_mistakes_reports_send_email($fieldNameId, $record->getView());
+
       drupal_json_output([
         'condition' => 'success',
       ]);
-
-      $fieldEmail = field_info_field($fieldNameId)['settings']['text_mistakes_reports_email_receiver'];
-      $emailReceiver = !empty($fieldEmail) ? $fieldEmail : variable_get('text_mistakes_reports_email_receiver');
-      $params = $record->getView();
-
-      if (valid_email_address($emailReceiver)) {
-        drupal_mail(
-          'text_mistakes_reports',
-          'mistake_report_mail',
-          $emailReceiver,
-          language_default(),
-          $params,
-          $from = variable_get('smtp_from'),
-          $send = TRUE
-        );
-      }
     }
     else {
       drupal_json_output([
@@ -184,28 +170,18 @@ function text_mistakes_reports_ajax_report() {
  * - currentPage - current page in grid (if deleted record was last)
  */
 function text_mistakes_reports_ajax_grid_delete() {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
   $reportId = (isset($_POST['reportId']) ? $_POST['reportId'] : NULL);
   $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
 
-  /** @var false|TextMistakesReportEntityController $entityController */
-  $entityController = entity_get_controller('text_mistakes_report');
   if ($reportId) {
     $entityController->delete([$reportId]);
   }
 
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-  if (!$rows) {
-    while ($currentPage > 0) {
-      $currentPage--;
-      $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-      if ($rows) {
-        break;
-      }
-    }
-    if (!$rows) {
-      $rows = text_mistakes_reports_get_reports_rows_from_table();
-    }
-  }
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage);
 
   $amountReports = $entityController->getAmountReports();
 
@@ -230,6 +206,8 @@ function text_mistakes_reports_ajax_grid_get_page() {
   $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
 
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage);
+
   $amountReports = $entityController->getAmountReports();
 
   drupal_json_output([
@@ -257,6 +235,29 @@ function text_mistakes_reports_mail($key, &$message, $params) {
         }
       }
       break;
+  }
+}
+
+/**
+ * Sending email with report about mistake
+ *
+ * @param $fieldNameId
+ * @param $params
+ */
+function text_mistakes_reports_send_email($fieldNameId, $params) {
+  $fieldEmail = field_info_field($fieldNameId)['settings']['text_mistakes_reports_email_receiver'];
+  $emailReceiver = !empty($fieldEmail) ? $fieldEmail : variable_get('text_mistakes_reports_email_receiver');
+
+  if (valid_email_address($emailReceiver)) {
+    drupal_mail(
+      'text_mistakes_reports',
+      'mistake_report_mail',
+      $emailReceiver,
+      language_default(),
+      $params,
+      $from = variable_get('smtp_from'),
+      $send = TRUE
+    );
   }
 }
 
@@ -406,7 +407,7 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
       '#default_value' => $defaultValue['email_receiver'],
       '#element_validate' => [
         'text_mistakes_reports_email_validate',
-        'text_mistakes_reports_form_field_ui_field_value'
+        'text_mistakes_reports_form_field_ui_field_value',
       ],
     ];
 
@@ -417,7 +418,7 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
       '#description' => t('The maximum size of text that can be to report'),
       '#element_validate' => [
         'element_validate_integer_positive',
-        'text_mistakes_reports_form_field_ui_field_value'
+        'text_mistakes_reports_form_field_ui_field_value',
       ],
     ];
 
@@ -427,7 +428,7 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
       '#default_value' => $defaultValue['report_text'],
       '#description' => t('Text that will show in popup'),
       '#element_validate' => [
-        'text_mistakes_reports_form_field_ui_field_value'
+        'text_mistakes_reports_form_field_ui_field_value',
       ],
     ];
 
@@ -441,7 +442,11 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
  * @param $form_state
  * @param $form
  */
-function text_mistakes_reports_form_field_ui_field_value($element, &$form_state, $form) {
+function text_mistakes_reports_form_field_ui_field_value(
+  $element,
+  &$form_state,
+  $form
+) {
   $fieldsSettings = $form_state['values']['field']['settings'];
 
   foreach ($fieldsSettings as $key => $value) {
@@ -608,4 +613,28 @@ function text_mistakes_reports_convert_records_to_needed_view($records) {
  */
 function text_mistakes_reports_is_valid_field_type($fieldType) {
   return ($fieldType === 'text_long') || ($fieldType === 'text_with_summary');
+}
+
+/**
+ * Check if records amount < records for page repeat select from db
+ *
+ * @param $rows
+ * @param $currentPage
+ *
+ * @return array
+ */
+function text_mistakes_reports_check_needed_amount_rows($rows, $currentPage) {
+  if (count($rows) < RECORD_PER_PAGE) {
+    while ($currentPage > 0) {
+      $currentPage--;
+      $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+      if (count($rows) === RECORD_PER_PAGE) {
+        return $rows;
+      }
+    }
+  }
+
+  $rows = text_mistakes_reports_get_reports_rows_from_table();
+
+  return $rows;
 }
