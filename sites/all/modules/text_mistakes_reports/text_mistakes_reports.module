@@ -180,10 +180,9 @@ function text_mistakes_reports_ajax_grid_delete() {
     $entityController->delete([$reportId]);
   }
 
-  $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage);
-
   $amountReports = $entityController->getAmountReports();
+  $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage, $amountReports);
 
   drupal_json_output([
     'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
@@ -205,9 +204,11 @@ function text_mistakes_reports_ajax_grid_get_page() {
 
   $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
 
-  $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-
   $amountReports = $entityController->getAmountReports();
+  $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage, $amountReports);
+
+
 
   drupal_json_output([
     'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
@@ -622,18 +623,18 @@ function text_mistakes_reports_is_valid_field_type($fieldType) {
  *
  * @return array
  */
-function text_mistakes_reports_check_needed_amount_rows($rows, $currentPage) {
-  if (!$rows) {
+function text_mistakes_reports_check_needed_amount_rows($rows, $currentPage, $amountReports) {
+  $maxPage = ceil($amountReports / RECORD_PER_PAGE);
+  if ((count($rows) < RECORD_PER_PAGE) && ($currentPage + 1 !== (int) $maxPage)) {
     while ($currentPage > 0) {
       $currentPage--;
       $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-      if (!empty($rows)) {
+      if (count($rows) === RECORD_PER_PAGE) {
         return $rows;
       }
     }
+    $rows = text_mistakes_reports_get_reports_rows_from_table();
   }
-
-  $rows = text_mistakes_reports_get_reports_rows_from_table();
 
   return $rows;
 }
