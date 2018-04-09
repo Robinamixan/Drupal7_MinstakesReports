@@ -145,7 +145,7 @@ function text_mistakes_reports_ajax_report() {
 
       $fieldEmail = field_info_field($fieldNameId)['settings']['text_mistakes_reports_email_receiver'];
       $emailReceiver = !empty($fieldEmail) ? $fieldEmail : variable_get('text_mistakes_reports_email_receiver');
-      $params = text_mistakes_reports_convert_records_to_needed_view([$record])[0];
+      $params = $record->getView();
 
       if (valid_email_address($emailReceiver)) {
         drupal_mail(
@@ -565,43 +565,7 @@ function text_mistakes_reports_convert_records_to_needed_view($records) {
   $correctRows = [];
 
   foreach ($records as $record) {
-    if ($record->entity_type === 'taxonomy_term') {
-      $entityLink = url(str_replace('_', '/',
-          $record->entity_type) . '/' . $record->entity_id . '/edit');
-
-      $term = entity_load($record->entity_type, [(int) $record->entity_id]);
-      $vocabularyId = $term[$record->entity_id]->vid;
-      $vocabulary = entity_load('taxonomy_vocabulary', [(int) $vocabularyId]);
-      $bundle = $vocabulary[$vocabularyId]->machine_name;
-      $fieldNameLabel = field_info_instance($record->entity_type,
-        $record->field_name,
-        $bundle)['label'];
-    }
-    else {
-      $entityLink = url($record->entity_type . '/' . $record->entity_id . '/edit');
-      $entity = entity_load($record->entity_type, [(int) $record->entity_id]);
-      $bundle = $entity[$record->entity_id]->type;
-      $fieldNameLabel = field_info_instance($record->entity_type,
-        $record->field_name,
-        $bundle)['label'];
-    }
-
-
-    $username = $record->user_id ? user_load($record->user_id)->name : 'anonymous';
-
-    $correctRows[] = [
-      'Report ID' => $record->report_id,
-      'Entity ID' => $record->entity_id,
-      'Revision ID' => $record->revision_id !== '-1' ? $record->revision_id : '',
-      'Entity Type' => $record->entity_type,
-      'Entity Link' => $entityLink,
-      'Date of Create' => $record->date_create,
-      'Field Name Label' => $fieldNameLabel,
-      'Field Name ID' => $record->field_name,
-      'Selected Text' => $record->selected_text,
-      'Username' => $username,
-      'User IP' => $record->user_ip,
-    ];
+    $correctRows[] = $record->getView();
   }
 
   return $correctRows;
