@@ -9,3 +9,4 @@ dependencies[] = smtp
 files[]=text_mistakes_reports_entity.inc
 files[]=text_mistakes_reports_entity_creator.inc
 files[]=text_mistakes_reports_entity_controller.inc
+files[]=text_mistakes_reports.test

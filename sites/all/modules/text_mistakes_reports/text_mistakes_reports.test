@@ -1,0 +1,72 @@
+<?php
+
+class TextMistakesReportsTestCases extends DrupalUnitTestCase
+{
+  public static function getInfo() {
+    return [
+      'name' => 'TextMistakesReports Unit tests',
+      'description' => 'Test that text_mistakes_reports_is_valid_field_type() works properly.',
+      'group' => 'TextMistakesReports',
+    ];
+
+  }
+
+  public function testEmptyMySQLDate() {
+    $result = text_mistakes_reports_is_valid_field_type('text_long');
+    $message = 'A text_long value should return TRUE.';
+    $this->assertTrue($result, $message);
+
+    $result = text_mistakes_reports_is_valid_field_type('text_with_summary');
+    $message = 'A text_with_summary value should return TRUE.';
+    $this->assertTrue($result, $message);
+
+    $result = text_mistakes_reports_is_valid_field_type('');
+    $message = 'An empty value should return False.';
+    $this->assertFalse($result, $message);
+
+    $result = text_mistakes_reports_is_valid_field_type('text');
+    $message = 'A text value should return False.';
+    $this->assertFalse($result, $message);
+  }
+}
+
+class TextMistakesReportsTestWebCases extends DrupalWebTestCase
+{
+  protected $privileged_user;
+
+  public static function getInfo() {
+    return [
+      'name' => 'TextMistakesReports Web tests',
+      'description' => 'Test that pages load properly. Test having access to ajax',
+      'group' => 'TextMistakesReports',
+    ];
+  }
+
+  public function setUp() {
+    parent::setUp(['text_mistakes_reports']);
+
+    $this->privileged_user = $this->drupalCreateUser([
+      'administer users',
+      'administer permissions',
+      'access user profiles',
+      'access administration pages',
+      'administer nodes',
+      'administer url aliases',
+      'administer content types',
+      'administer blocks',
+    ]);
+    $this->drupalLogin($this->privileged_user);
+  }
+
+  public function testPagesLoad() {
+    $this->drupalGet('admin/reports/text_mistakes_reports');
+    $this->assertResponse(200);
+
+    $this->drupalGet('admin/config/content/text_mistakes_reports');
+    $this->assertResponse(200);
+
+    $data = $this->drupalGetAJAX('text_mistakes_reports/ajax/grid/page', ['currentPage' => 0]);
+    $message = 'A ajax response should have field "maxPage"';
+    $this->assertTrue(key_exists('maxPage', $data), $message);
+  }
+}
