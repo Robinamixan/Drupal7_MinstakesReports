@@ -26,15 +26,14 @@ class EntityCreator {
     return $record;
   }
 
-  private function convertLinkToProperties($entityLink)
-  {
+  private function convertLinkToProperties($entityLink) {
     $linkParts = explode('/', $entityLink);
     $entityType = $linkParts[0];
 
     if ($entityType === 'taxonomy') {
       $entityType = $linkParts[0] . '_' . $linkParts[1];
       $entityId = $linkParts[2];
-      $revisionId= -1;
+      $revisionId = -1;
     }
     else {
       $entityId = $linkParts[1];

@@ -117,6 +117,7 @@ function text_mistakes_reports_ajax_report() {
   /** @var false|TextMistakesReportEntityController $entityController */
   $entityController = entity_get_controller('text_mistakes_report');
   $creator = new EntityCreator();
+  $saved = FALSE;
 
   $entityLink = (isset($_POST['objectLink']) ? $_POST['objectLink'] : NULL);
   $fieldNameId = (isset($_POST['fieldName']) ? $_POST['fieldName'] : NULL);
@@ -127,16 +128,16 @@ function text_mistakes_reports_ajax_report() {
   $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
 
   if (($entityController->getAmountReportsByIP($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday))) {
-
-    $record = $creator->createTextMistakesReportEntity(
-      $entityLink,
-      $fieldNameId,
-      $selectedText,
-      $userId,
-      $userIP
-    );
-
-    $saved = $entityController->save($record);
+    if (!empty($entityLink)) {
+      $record = $creator->createTextMistakesReportEntity(
+        $entityLink,
+        $fieldNameId,
+        $selectedText,
+        $userId,
+        $userIP
+      );
+      $saved = $entityController->save($record);
+    }
 
     if ($saved) {
       drupal_json_output([

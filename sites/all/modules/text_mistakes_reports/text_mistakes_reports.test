@@ -1,7 +1,7 @@
 <?php
 
-class TextMistakesReportsTestCases extends DrupalUnitTestCase
-{
+class TextMistakesReportsTestUnitCases extends DrupalUnitTestCase {
+
   public static function getInfo() {
     return [
       'name' => 'TextMistakesReports Unit tests',
@@ -11,7 +11,7 @@ class TextMistakesReportsTestCases extends DrupalUnitTestCase
 
   }
 
-  public function testEmptyMySQLDate() {
+  public function testIsValidFieldType() {
     $result = text_mistakes_reports_is_valid_field_type('text_long');
     $message = 'A text_long value should return TRUE.';
     $this->assertTrue($result, $message);
@@ -30,8 +30,8 @@ class TextMistakesReportsTestCases extends DrupalUnitTestCase
   }
 }
 
-class TextMistakesReportsTestWebCases extends DrupalWebTestCase
-{
+class TextMistakesReportsTestWebCases extends DrupalWebTestCase {
+
   protected $privileged_user;
 
   public static function getInfo() {
@@ -65,7 +65,8 @@ class TextMistakesReportsTestWebCases extends DrupalWebTestCase
     $this->drupalGet('admin/config/content/text_mistakes_reports');
     $this->assertResponse(200);
 
-    $data = $this->drupalGetAJAX('text_mistakes_reports/ajax/grid/page', ['currentPage' => 0]);
+    $data = $this->drupalGetAJAX('text_mistakes_reports/ajax/grid/page',
+      ['currentPage' => 0]);
     $message = 'A ajax response should have field "maxPage"';
     $this->assertTrue(key_exists('maxPage', $data), $message);
   }
