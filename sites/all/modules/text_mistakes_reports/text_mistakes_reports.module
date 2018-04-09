@@ -206,7 +206,6 @@ function text_mistakes_reports_ajax_grid_get_page() {
   $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
 
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage);
 
   $amountReports = $entityController->getAmountReports();
 
@@ -624,11 +623,11 @@ function text_mistakes_reports_is_valid_field_type($fieldType) {
  * @return array
  */
 function text_mistakes_reports_check_needed_amount_rows($rows, $currentPage) {
-  if (count($rows) < RECORD_PER_PAGE) {
+  if (!$rows) {
     while ($currentPage > 0) {
       $currentPage--;
       $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-      if (count($rows) === RECORD_PER_PAGE) {
+      if (!empty($rows)) {
         return $rows;
       }
     }
