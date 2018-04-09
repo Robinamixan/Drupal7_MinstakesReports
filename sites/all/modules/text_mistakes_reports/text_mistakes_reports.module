@@ -189,11 +189,11 @@ function text_mistakes_reports_ajax_grid_delete() {
 
   /** @var false|TextMistakesReportEntityController $entityController */
   $entityController = entity_get_controller('text_mistakes_report');
-  $entityController->delete([$reportId]);
-
+  if ($reportId) {
+    $entityController->delete([$reportId]);
+  }
 
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-
   if (!$rows) {
     while ($currentPage > 0) {
       $currentPage--;
