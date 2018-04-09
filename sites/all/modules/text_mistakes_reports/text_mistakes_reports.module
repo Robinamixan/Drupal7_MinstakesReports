@@ -403,7 +403,10 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
       '#type' => 'textfield',
       '#title' => t('Email where sending reports'),
       '#default_value' => $defaultValue['email_receiver'],
-      '#element_validate' => ['text_mistakes_reports_email_validate'],
+      '#element_validate' => [
+        'text_mistakes_reports_email_validate',
+        'text_mistakes_reports_form_field_ui_field_value'
+      ],
     ];
 
     $form['field']['settings']['text_mistakes_reports_max_text_length'] = [
@@ -411,7 +414,10 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
       '#title' => t('Maximum size of text length'),
       '#default_value' => $defaultValue['max_text_length'],
       '#description' => t('The maximum size of text that can be to report'),
-      '#element_validate' => ['element_validate_integer_positive'],
+      '#element_validate' => [
+        'element_validate_integer_positive',
+        'text_mistakes_reports_form_field_ui_field_value'
+      ],
     ];
 
     $form['field']['settings']['text_mistakes_reports_report_text'] = [
@@ -419,7 +425,28 @@ function text_mistakes_reports_form_field_ui_field_edit_form_alter(
       '#title' => t('Report Text'),
       '#default_value' => $defaultValue['report_text'],
       '#description' => t('Text that will show in popup'),
+      '#element_validate' => [
+        'text_mistakes_reports_form_field_ui_field_value'
+      ],
     ];
+
+  }
+}
+
+/**
+ * Checked if input data compared with global data
+ *
+ * @param $element
+ * @param $form_state
+ * @param $form
+ */
+function text_mistakes_reports_form_field_ui_field_value($element, &$form_state, $form) {
+  $fieldsSettings = $form_state['values']['field']['settings'];
+
+  foreach ($fieldsSettings as $key => $value) {
+    if ($value === (string) variable_get($key)) {
+      form_set_value($form['field']['settings'][$key], '', $form_state);
+    }
   }
 }
 
@@ -580,5 +607,4 @@ function text_mistakes_reports_convert_records_to_needed_view($records) {
  */
 function text_mistakes_reports_is_valid_field_type($fieldType) {
   return ($fieldType === 'text_long') || ($fieldType === 'text_with_summary');
-
 }
