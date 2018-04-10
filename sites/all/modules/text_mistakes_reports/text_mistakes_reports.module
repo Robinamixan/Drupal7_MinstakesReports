@@ -125,9 +125,8 @@ function text_mistakes_reports_ajax_report() {
   $userId = (isset($_POST['userId']) ? $_POST['userId'] : NULL);
 
   $userIP = ip_address();
-  $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
 
-  if (($entityController->getAmountReportsByIP($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday))) {
+  if (text_mistakes_reports_can_user_send_reports($userIP)) {
     if (!empty($entityLink)) {
       $record = $creator->createTextMistakesReportEntity(
         $entityLink,
@@ -141,24 +140,23 @@ function text_mistakes_reports_ajax_report() {
 
     if ($saved) {
       text_mistakes_reports_send_email($fieldNameId, $record->getView());
-
-      drupal_json_output([
-        'condition' => 'success',
-      ]);
+      $ajaxResponseCondition = 'success';
+      $ajaxResponseMessage = '';
     }
     else {
-      drupal_json_output([
-        'condition' => 'failure',
-        'errorText' => t('Sorry but your report not saved, pls try again'),
-      ]);
+      $ajaxResponseCondition = 'failure';
+      $ajaxResponseMessage = t('Sorry but your report not saved, pls try again');
     }
   }
   else {
-    drupal_json_output([
-      'condition' => 'failure',
-      'errorText' => t('Sorry but you cant sending reports anymore today.'),
-    ]);
+    $ajaxResponseCondition = 'failure';
+    $ajaxResponseMessage = t('Sorry but you cant sending reports anymore today.');
   }
+
+  drupal_json_output([
+    'condition' => $ajaxResponseCondition,
+    'errorText' => $ajaxResponseMessage,
+  ]);
 }
 
 /**
@@ -182,7 +180,8 @@ function text_mistakes_reports_ajax_grid_delete() {
 
   $amountReports = $entityController->getAmountReports();
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage, $amountReports);
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage,
+    $amountReports);
 
   drupal_json_output([
     'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
@@ -206,8 +205,8 @@ function text_mistakes_reports_ajax_grid_get_page() {
 
   $amountReports = $entityController->getAmountReports();
   $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
-  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage, $amountReports);
-
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage,
+    $amountReports);
 
 
   drupal_json_output([
@@ -245,14 +244,13 @@ function text_mistakes_reports_mail($key, &$message, $params) {
  * @param $params
  */
 function text_mistakes_reports_send_email($fieldNameId, $params) {
-  $fieldEmail = field_info_field($fieldNameId)['settings']['text_mistakes_reports_email_receiver'];
-  $emailReceiver = !empty($fieldEmail) ? $fieldEmail : variable_get('text_mistakes_reports_email_receiver');
+  $fieldValues = text_mistakes_reports_get_field_values(field_info_field($fieldNameId));
 
-  if (valid_email_address($emailReceiver)) {
+  if (valid_email_address($fieldValues['email_receiver'])) {
     drupal_mail(
       'text_mistakes_reports',
       'mistake_report_mail',
-      $emailReceiver,
+      $fieldValues['email_receiver'],
       language_default(),
       $params,
       $from = variable_get('smtp_from'),
@@ -329,6 +327,8 @@ function text_mistakes_reports_reports_page() {
   ], 'setting');
 
   $rows = text_mistakes_reports_get_reports_rows_from_table();
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, 0,
+    $amountReports);
 
   return theme('text_mistakes_reports_grid_theme', ['rows' => $rows]);
 }
@@ -529,8 +529,7 @@ function text_mistakes_reports_get_field_values($field) {
  */
 function text_mistakes_reports_get_fields_settings_for_page() {
   $observedFields = [];
-  $allFields = field_info_fields();
-  foreach ($allFields as $field) {
+  foreach (field_info_fields() as $field) {
     if ((text_mistakes_reports_is_valid_field_type($field['type'])) && ($field['field_name'] !== 'comment_body')) {
       if (key_exists('text_mistakes_reports_enabled', $field['settings'])) {
         if ($field['settings']['text_mistakes_reports_enabled']) {
@@ -556,6 +555,7 @@ function text_mistakes_reports_get_fields_settings_for_page() {
 function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
   /** @var false|TextMistakesReportEntityController $entityController */
   $entityController = entity_get_controller('text_mistakes_report');
+
   $records = $entityController->loadInInterval($currentPage * RECORD_PER_PAGE,
     RECORD_PER_PAGE);
 
@@ -571,20 +571,16 @@ function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
  * @return array
  */
 function text_mistakes_reports_check_records_entity_exist($records) {
-  $validRecords = [];
-
   /** @var false|TextMistakesReportEntityController $entityController */
   $entityController = entity_get_controller('text_mistakes_report');
 
   foreach ($records as $index => $record) {
-    if (!entity_load($record->entity_type, [(int) $record->entity_id])) {
-      $entityController->delete($record->report_id);
-    }
-    else {
-      $validRecords[] = $record;
+    if (!entity_load($record->entity_type, [$record->entity_id])) {
+      $entityController->delete([$record->report_id]);
+      unset($records[$index]);
     }
   }
-  return $validRecords;
+  return $records;
 }
 
 /**
@@ -620,11 +616,17 @@ function text_mistakes_reports_is_valid_field_type($fieldType) {
  *
  * @param $rows
  * @param $currentPage
+ * @param $amountReports
  *
  * @return array
  */
-function text_mistakes_reports_check_needed_amount_rows($rows, $currentPage, $amountReports) {
+function text_mistakes_reports_check_needed_amount_rows(
+  $rows,
+  $currentPage = 0,
+  $amountReports
+) {
   $maxPage = ceil($amountReports / RECORD_PER_PAGE);
+
   if ((count($rows) < RECORD_PER_PAGE) && ($currentPage + 1 !== (int) $maxPage)) {
     while ($currentPage > 0) {
       $currentPage--;
@@ -637,4 +639,21 @@ function text_mistakes_reports_check_needed_amount_rows($rows, $currentPage, $am
   }
 
   return $rows;
+}
+
+/**
+ *Check can user with this ip sending reports
+ *
+ * @param $userIP
+ *
+ * @return bool
+ */
+function text_mistakes_reports_can_user_send_reports($userIP) {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
+  $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
+
+  return ($entityController->getAmountReportsByIP($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday));
+
 }
