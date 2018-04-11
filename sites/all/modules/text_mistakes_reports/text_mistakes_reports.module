@@ -1,0 +1,659 @@
+<?php
+
+/**
+ * Amount records on page of report grid
+ */
+const RECORD_PER_PAGE = 4;
+
+/**
+ * Implements hook_help().
+ */
+function text_mistakes_reports_help($path, $arg) {
+  $message = 'A module that add popup to field types "long text" and "long text and summary"' .
+    ' and it can send reports about mistakes to admin email.';
+  switch ($path) {
+    case 'admin/help#text_mistakes_reports':
+      return t($message);
+      break;
+  }
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function text_mistakes_reports_block_info() {
+  $blocks['text_mistakes_reports_popup'] = [
+    'info' => t('Sender of Text Mistakes Reports'),
+    'status' => TRUE,
+    'region' => 'content',
+  ];
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function text_mistakes_reports_block_view($delta = '') {
+  global $user;
+  switch ($delta) {
+    case 'text_mistakes_reports_popup':
+      $fieldsSettings = module_invoke_all('get_fields_settings_for_page');
+      $sendReportUrl = ['sendReportUrl' => url('text_mistakes_reports/ajax/send/report')];
+      $userId = ['userId' => $user->uid];
+
+      $block['content'] = [
+        '#theme' => 'text_mistakes_reports_popup_theme',
+        '#type' => 'markup',
+
+        '#attached' => [
+          'css' => [
+            drupal_get_path('module',
+              'text_mistakes_reports') . '/css/popup.css',
+          ],
+          'js' => [
+            drupal_get_path('module', 'text_mistakes_reports') . '/js/popup.js',
+            [
+              'data' => ['textMistakesReportsFields' => $fieldsSettings],
+              'type' => 'setting',
+            ],
+            [
+              'data' => ['textMistakesReportsAjax' => $sendReportUrl],
+              'type' => 'setting',
+            ],
+            [
+              'data' => ['textMistakesReportsUser' => $userId],
+              'type' => 'setting',
+            ],
+          ],
+        ],
+      ];
+      return $block;
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function text_mistakes_reports_theme($existing, $type, $theme, $path) {
+  return [
+    'text_mistakes_reports_popup_theme' => [
+      'variables' => [],
+      'template' => 'text_mistakes_reports_popup',
+      'path' => drupal_get_path('module', 'text_mistakes_reports'),
+    ],
+
+    'text_mistakes_reports_grid_theme' => [
+      'variables' => [
+        'rows' => [],
+      ],
+      'template' => 'text_mistakes_reports_grid',
+      'path' => drupal_get_path('module', 'text_mistakes_reports'),
+    ],
+  ];
+}
+
+/**
+ * Implements hook_entity_info().
+ */
+function text_mistakes_reports_entity_info() {
+  return [
+    'text_mistakes_report' => [
+      'label' => t('Text Mistakes Report'),
+      'base table' => 'text_mistakes_report',
+      'controller class' => 'TextMistakesReportEntityController',
+      'entity keys' => [
+        'id' => 'report_id',
+      ],
+      'load hook' => 'text_mistakes_reports_load',
+    ],
+  ];
+}
+
+/**
+ * Getting ajax request of mistake report, saving report,
+ * sending email to receiver and sending response of process condition
+ */
+function text_mistakes_reports_ajax_report() {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+  $creator = new EntityCreator();
+  $saved = FALSE;
+
+  $entityLink = (isset($_POST['objectLink']) ? $_POST['objectLink'] : NULL);
+  $fieldNameId = (isset($_POST['fieldName']) ? $_POST['fieldName'] : NULL);
+  $selectedText = (isset($_POST['selectedText']) ? $_POST['selectedText'] : NULL);
+  $userId = (isset($_POST['userId']) ? $_POST['userId'] : NULL);
+
+  $userIP = ip_address();
+
+  if (text_mistakes_reports_can_user_send_reports($userIP)) {
+    if (!empty($entityLink)) {
+      $record = $creator->createTextMistakesReportEntity(
+        $entityLink,
+        $fieldNameId,
+        $selectedText,
+        $userId,
+        $userIP
+      );
+      $saved = $entityController->save($record);
+    }
+
+    if ($saved) {
+      text_mistakes_reports_send_email($fieldNameId, $record->getView());
+      $ajaxResponseCondition = 'success';
+      $ajaxResponseMessage = '';
+    }
+    else {
+      $ajaxResponseCondition = 'failure';
+      $ajaxResponseMessage = t('Sorry but your report not saved, pls try again');
+    }
+  }
+  else {
+    $ajaxResponseCondition = 'failure';
+    $ajaxResponseMessage = t('Sorry but you cant sending reports anymore today.');
+  }
+
+  drupal_json_output([
+    'condition' => $ajaxResponseCondition,
+    'errorText' => $ajaxResponseMessage,
+  ]);
+}
+
+/**
+ * Getting ajax request of report delete, delete report,
+ * getting records rows for current page and
+ * sending report with this parametres:
+ * - htmlGrid - html with grid
+ * - maxPage - max amount of pages in report grid
+ * - currentPage - current page in grid (if deleted record was last)
+ */
+function text_mistakes_reports_ajax_grid_delete() {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
+  $reportId = (isset($_POST['reportId']) ? $_POST['reportId'] : NULL);
+  $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
+
+  if ($reportId) {
+    $entityController->delete([$reportId]);
+  }
+
+  $amountReports = $entityController->getAmountReports();
+  $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage,
+    $amountReports);
+
+  drupal_json_output([
+    'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
+    'maxPage' => ceil($amountReports / RECORD_PER_PAGE),
+    'currentPage' => $currentPage,
+  ]);
+}
+
+/**
+ * Getting ajax request of grid page,
+ * getting records rows for current page and
+ * sending report with this parametres:
+ * - htmlGrid - html with grid
+ * - maxPage - max amount of pages in report grid
+ */
+function text_mistakes_reports_ajax_grid_get_page() {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
+  $currentPage = (isset($_POST['currentPage']) ? $_POST['currentPage'] : NULL);
+
+  $amountReports = $entityController->getAmountReports();
+  $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, $currentPage,
+    $amountReports);
+
+
+  drupal_json_output([
+    'htmlGrid' => theme('text_mistakes_reports_grid_theme', ['rows' => $rows]),
+    'maxPage' => ceil($amountReports / RECORD_PER_PAGE),
+  ]);
+}
+
+/**
+ * Implements hook_mail().
+ */
+function text_mistakes_reports_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'mistake_report_mail':
+      $message['subject'] = t('Mistake Report');
+
+      foreach ($params as $key => $value) {
+        if ($key === 'Entity Link') {
+          $message['body'][] = t('@key: <a href="@value">@value</a>,',
+            ['@key' => $key, '@value' => $value]);
+        }
+        else {
+          $message['body'][] = t('@key: @value,',
+            ['@key' => $key, '@value' => $value]);
+        }
+      }
+      break;
+  }
+}
+
+/**
+ * Sending email with report about mistake
+ *
+ * @param $fieldNameId
+ * @param $params
+ */
+function text_mistakes_reports_send_email($fieldNameId, $params) {
+  $fieldValues = text_mistakes_reports_get_field_values(field_info_field($fieldNameId));
+
+  if (valid_email_address($fieldValues['email_receiver'])) {
+    drupal_mail(
+      'text_mistakes_reports',
+      'mistake_report_mail',
+      $fieldValues['email_receiver'],
+      language_default(),
+      $params,
+      $from = variable_get('smtp_from'),
+      $send = TRUE
+    );
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function text_mistakes_reports_menu() {
+  $items = [];
+
+  $items['admin/config/content/text_mistakes_reports'] = [
+    'title' => t('Sender of Text Mistakes Reports'),
+    'description' => t('A module that add popup to field types "long text"'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['text_mistakes_reports_form'],
+    'access arguments' => ['access administration pages'],
+    'type' => MENU_NORMAL_ITEM,
+  ];
+
+  $items['admin/reports/text_mistakes_reports'] = [
+    'title' => t('Sender of Text Mistakes Reports'),
+    'description' => t('showing received mistakes reports'),
+    'page callback' => 'text_mistakes_reports_reports_page',
+    'access arguments' => ['access administration pages'],
+    'type' => MENU_NORMAL_ITEM,
+  ];
+
+  $items['text_mistakes_reports/ajax/send/report'] = [
+    'type' => MENU_CALLBACK,
+    'page callback' => 'text_mistakes_reports_ajax_report',
+    'access arguments' => ['access content'],
+  ];
+
+  $items['text_mistakes_reports/ajax/grid/delete'] = [
+    'type' => MENU_CALLBACK,
+    'page callback' => 'text_mistakes_reports_ajax_grid_delete',
+    'access arguments' => ['access content'],
+  ];
+
+  $items['text_mistakes_reports/ajax/grid/page'] = [
+    'type' => MENU_CALLBACK,
+    'page callback' => 'text_mistakes_reports_ajax_grid_get_page',
+    'access arguments' => ['access content'],
+  ];
+
+  return $items;
+}
+
+/**
+ * Setting page 'admin/reports/text_mistakes_reports' with Report Grid
+ *
+ * @return string
+ * html of report grid
+ * @throws \Exception
+ */
+function text_mistakes_reports_reports_page() {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+  $amountReports = $entityController->getAmountReports();
+
+  drupal_add_js(drupal_get_path('module',
+      'text_mistakes_reports') . '/js/grid.js');
+
+  drupal_add_js([
+    'textMistakesReportsAjax' => [
+      'gridDeleteUrl' => url('text_mistakes_reports/ajax/grid/delete'),
+      'gridPageUrl' => url('text_mistakes_reports/ajax/grid/page'),
+      'gridMaxPage' => ceil($amountReports / RECORD_PER_PAGE),
+    ],
+  ], 'setting');
+
+  $rows = text_mistakes_reports_get_reports_rows_from_table();
+  $rows = text_mistakes_reports_check_needed_amount_rows($rows, 0,
+    $amountReports);
+
+  return theme('text_mistakes_reports_grid_theme', ['rows' => $rows]);
+}
+
+/**
+ * Implements hook_form().
+ */
+function text_mistakes_reports_form($form, &$form_state) {
+  $form['text_mistakes_reports_email_receiver'] = [
+    '#type' => 'textfield',
+    '#title' => t('Email where sending reports'),
+    '#default_value' => variable_get('text_mistakes_reports_email_receiver',
+      variable_get('site_mail', '')),
+    '#required' => TRUE,
+    '#element_validate' => ['text_mistakes_reports_email_validate'],
+  ];
+
+  $form['text_mistakes_reports_max_text_length'] = [
+    '#type' => 'textfield',
+    '#title' => t('Maximum size of text length'),
+    '#default_value' => variable_get('text_mistakes_reports_max_text_length',
+      50),
+    '#size' => 4,
+    '#maxlength' => 4,
+    '#description' => t('The maximum size of text that can be to report'),
+    '#element_validate' => ['element_validate_integer_positive'],
+    '#required' => TRUE,
+  ];
+
+  $form['text_mistakes_reports_report_text'] = [
+    '#type' => 'textarea',
+    '#title' => t('Report Text'),
+    '#default_value' => variable_get('text_mistakes_reports_report_text', ''),
+    '#description' => t('Text that will show in popup'),
+    '#required' => TRUE,
+  ];
+
+  $form['text_mistakes_reports_max_reports'] = [
+    '#type' => 'textfield',
+    '#title' => t('Maximum number of reports'),
+    '#default_value' => variable_get('text_mistakes_reports_max_reports', 3),
+    '#size' => 4,
+    '#maxlength' => 4,
+    '#description' => t('The maximum number of reports to send with one IP. If empty - unlimited'),
+    '#element_validate' => ['element_validate_integer_positive'],
+  ];
+
+  return system_settings_form($form);
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function text_mistakes_reports_form_field_ui_field_edit_form_alter(
+  &$form,
+  &$form_state,
+  $form_id
+) {
+  $field = $form['#field'];
+  $defaultValue = text_mistakes_reports_get_field_values($field);
+
+  if (text_mistakes_reports_is_valid_field_type($field['type'])) {
+    $form['field']['settings']['text_mistakes_reports_enabled'] = [
+      '#type' => 'select',
+      '#title' => t('Enable "Text Mistakes Reports" Module'),
+      '#options' => [
+        '1' => 'yes',
+        '0' => 'no',
+      ],
+      '#default_value' => $defaultValue['enabled'],
+    ];
+
+    $form['field']['settings']['text_mistakes_reports_email_receiver'] = [
+      '#type' => 'textfield',
+      '#title' => t('Email where sending reports'),
+      '#default_value' => $defaultValue['email_receiver'],
+      '#element_validate' => [
+        'text_mistakes_reports_email_validate',
+        'text_mistakes_reports_form_field_ui_field_value',
+      ],
+    ];
+
+    $form['field']['settings']['text_mistakes_reports_max_text_length'] = [
+      '#type' => 'textfield',
+      '#title' => t('Maximum size of text length'),
+      '#default_value' => $defaultValue['max_text_length'],
+      '#description' => t('The maximum size of text that can be to report'),
+      '#element_validate' => [
+        'element_validate_integer_positive',
+        'text_mistakes_reports_form_field_ui_field_value',
+      ],
+    ];
+
+    $form['field']['settings']['text_mistakes_reports_report_text'] = [
+      '#type' => 'textarea',
+      '#title' => t('Report Text'),
+      '#default_value' => $defaultValue['report_text'],
+      '#description' => t('Text that will show in popup'),
+      '#element_validate' => [
+        'text_mistakes_reports_form_field_ui_field_value',
+      ],
+    ];
+
+  }
+}
+
+/**
+ * Checked if input data compared with global data
+ *
+ * @param $element
+ * @param $form_state
+ * @param $form
+ */
+function text_mistakes_reports_form_field_ui_field_value(
+  $element,
+  &$form_state,
+  $form
+) {
+  $fieldsSettings = $form_state['values']['field']['settings'];
+
+  foreach ($fieldsSettings as $key => $value) {
+    if ($value === (string) variable_get($key)) {
+      form_set_value($form['field']['settings'][$key], '', $form_state);
+    }
+  }
+}
+
+/**
+ * Implements hook_field_info_alter().
+ *
+ * @param $info
+ */
+function text_mistakes_reports_field_info_alter(&$info) {
+  foreach ($info as $field_type => $field_type_info) {
+    if (text_mistakes_reports_is_valid_field_type($field_type)) {
+      $info[$field_type]['settings'] += [
+        'text_mistakes_reports_enabled' => '1',
+        'text_mistakes_reports_email_receiver' => '',
+        'text_mistakes_reports_max_text_length' => '',
+        'text_mistakes_reports_report_text' => '',
+      ];
+    }
+  }
+}
+
+/**
+ * Validation for email fields
+ *
+ * @param $element
+ * @param $form_state
+ * @param $form
+ */
+function text_mistakes_reports_email_validate($element, &$form_state, $form) {
+  $value = $element['#value'];
+  if (!valid_email_address($value)) {
+    form_error($element, t('Please enter a valid email address.'));
+  }
+}
+
+/**
+ * Getting default configuration values for current field from module configs
+ *
+ * @param $field
+ *
+ * @return array
+ */
+function text_mistakes_reports_get_field_values($field) {
+  $defaultValue = [];
+
+  $globalValueReceiverEmail = variable_get('text_mistakes_reports_email_receiver');
+  $globalValueMaxTextLength = variable_get('text_mistakes_reports_max_text_length');
+  $globalValueReportText = variable_get('text_mistakes_reports_report_text');
+
+  $defaultValue['email_receiver'] = !empty($field['settings']['text_mistakes_reports_email_receiver']) ?
+    $field['settings']['text_mistakes_reports_email_receiver'] :
+    $globalValueReceiverEmail;
+
+  $defaultValue['max_text_length'] = !empty($field['settings']['text_mistakes_reports_max_text_length']) ?
+    $field['settings']['text_mistakes_reports_max_text_length'] :
+    $globalValueMaxTextLength;
+
+  $defaultValue['report_text'] = !empty($field['settings']['text_mistakes_reports_report_text']) ?
+    $field['settings']['text_mistakes_reports_report_text'] :
+    $globalValueReportText;
+
+  $defaultValue['enabled'] = key_exists('text_mistakes_reports_enabled',
+    $field['settings']) ?
+    $field['settings']['text_mistakes_reports_enabled'] :
+    1;
+
+  return $defaultValue;
+}
+
+/**
+ * Prepare configs of fields for sending into js
+ *
+ * @return array
+ */
+function text_mistakes_reports_get_fields_settings_for_page() {
+  $observedFields = [];
+  foreach (field_info_fields() as $field) {
+    if ((text_mistakes_reports_is_valid_field_type($field['type'])) && ($field['field_name'] !== 'comment_body')) {
+      if (key_exists('text_mistakes_reports_enabled', $field['settings'])) {
+        if ($field['settings']['text_mistakes_reports_enabled']) {
+          $observedFields[$field['field_name']]['fieldName'] = $field['field_name'];
+          $values = text_mistakes_reports_get_field_values($field);
+          $observedFields[$field['field_name']]['receiverEmail'] = $values['email_receiver'];
+          $observedFields[$field['field_name']]['maxLength'] = $values['max_text_length'];
+          $observedFields[$field['field_name']]['reportText'] = $values['report_text'];
+        }
+      }
+    }
+  }
+  return $observedFields;
+}
+
+/**
+ * Getting reports for current page and converting them for view in grid
+ *
+ * @param int $currentPage
+ *
+ * @return array
+ */
+function text_mistakes_reports_get_reports_rows_from_table($currentPage = 0) {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
+  $records = $entityController->loadInInterval($currentPage * RECORD_PER_PAGE,
+    RECORD_PER_PAGE);
+
+  $records = text_mistakes_reports_check_records_entity_exist($records);
+  return text_mistakes_reports_convert_records_to_needed_view($records);
+}
+
+/**
+ * Checking records if its entity not exists that records deleting
+ *
+ * @param $records
+ *
+ * @return array
+ */
+function text_mistakes_reports_check_records_entity_exist($records) {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
+  foreach ($records as $index => $record) {
+    if (!entity_load($record->entity_type, [$record->entity_id])) {
+      $entityController->delete([$record->report_id]);
+      unset($records[$index]);
+    }
+  }
+  return $records;
+}
+
+/**
+ * Converting records for view in grid
+ *
+ * @param $records
+ *
+ * @return array
+ */
+function text_mistakes_reports_convert_records_to_needed_view($records) {
+  $correctRows = [];
+
+  foreach ($records as $record) {
+    $correctRows[] = $record->getView();
+  }
+
+  return $correctRows;
+}
+
+/**
+ * Checking if filed type compare with needed fields
+ *
+ * @param $fieldType
+ *
+ * @return bool
+ */
+function text_mistakes_reports_is_valid_field_type($fieldType) {
+  return ($fieldType === 'text_long') || ($fieldType === 'text_with_summary');
+}
+
+/**
+ * Check if records amount < records for page repeat select from db
+ *
+ * @param $rows
+ * @param $currentPage
+ * @param $amountReports
+ *
+ * @return array
+ */
+function text_mistakes_reports_check_needed_amount_rows(
+  $rows,
+  $currentPage = 0,
+  $amountReports
+) {
+  $maxPage = ceil($amountReports / RECORD_PER_PAGE);
+
+  if ((count($rows) < RECORD_PER_PAGE) && ($currentPage + 1 !== (int) $maxPage)) {
+    while ($currentPage > 0) {
+      $currentPage--;
+      $rows = text_mistakes_reports_get_reports_rows_from_table($currentPage);
+      if (count($rows) === RECORD_PER_PAGE) {
+        return $rows;
+      }
+    }
+    $rows = text_mistakes_reports_get_reports_rows_from_table();
+  }
+
+  return $rows;
+}
+
+/**
+ *Check can user with this ip sending reports
+ *
+ * @param $userIP
+ *
+ * @return bool
+ */
+function text_mistakes_reports_can_user_send_reports($userIP) {
+  /** @var false|TextMistakesReportEntityController $entityController */
+  $entityController = entity_get_controller('text_mistakes_report');
+
+  $maxAmountReportsToday = variable_get('text_mistakes_reports_max_reports');
+
+  return ($entityController->getAmountReportsByIP($userIP) + 1 <= (int) $maxAmountReportsToday) || (empty($maxAmountReportsToday));
+
+}

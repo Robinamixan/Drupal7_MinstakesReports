@@ -1,0 +1,137 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function text_mistakes_reports_schema() {
+  $schema['text_mistakes_report'] = [
+    'fields' => [
+      'report_id' => [
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'entity_id' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      'revision_id' => [
+        'type' => 'int',
+        'default' => 0,
+      ],
+      'entity_type' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'date_create' => [
+        'type' => 'datetime',
+        'mysql_type' => 'datetime',
+        'not null' => TRUE,
+      ],
+      'field_name' => [
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'selected_text' => [
+        'type' => 'varchar',
+        'length' => 5000,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'user_id' => [
+        'type' => 'int',
+        'length' => 100,
+        'default' => 0,
+      ],
+      'user_ip' => [
+        'type' => 'varchar',
+        'length' => 20,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+    ],
+    'primary key' => ['report_id'],
+    'indexes' => [
+      'text_mistakes_report_entity_id' => ['entity_id'],
+      'text_mistakes_report_entity_type' => ['entity_type'],
+      'text_mistakes_report_date_create' => ['date_create'],
+      'text_mistakes_report_field_name' => ['field_name'],
+      'text_mistakes_report_user_id' => ['user_id'],
+      'text_mistakes_report_user_ip' => ['user_ip'],
+      'text_mistakes_report_user_id_ip' => ['user_id', 'user_ip'],
+    ],
+    'foreign keys' => [
+      'text_mistakes_report_users' => [
+        'table' => 'users',
+        'columns' => [
+          'user_id' => 'uid',
+        ],
+      ],
+    ],
+  ];
+
+  return $schema;
+}
+
+/**
+ * Implements hook_enable().
+ */
+function text_mistakes_reports_install() {
+  variable_set('text_mistakes_reports_max_reports', 3);
+  variable_set('text_mistakes_reports_email_receiver',
+    variable_get('site_mail', ''));
+  variable_set('text_mistakes_reports_max_text_length', 50);
+  variable_set('text_mistakes_reports_report_text', 'Thanks');
+
+  $allFields = field_info_fields();
+  foreach ($allFields as $field) {
+    if (($field['type'] === 'text_long') || ($field['type'] === 'text_with_summary') && ($field['field_name'] !== 'comment_body')) {
+      if (key_exists('text_mistakes_reports_enabled', $field['settings'])) {
+
+        $field['settings']['text_mistakes_reports_enabled'] = 1;
+        $field['settings']['text_mistakes_reports_email_receiver'] = '';
+        $field['settings']['text_mistakes_reports_max_text_length'] = '';
+        $field['settings']['text_mistakes_reports_report_text'] = '';
+        field_update_field($field);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function text_mistakes_reports_uninstall() {
+  variable_del('text_mistakes_reports_max_reports');
+  variable_del('text_mistakes_reports_email_receiver');
+  variable_del('text_mistakes_reports_max_text_length');
+  variable_del('text_mistakes_reports_report_text');
+
+  db_drop_table('text_mistakes_report');
+
+  $allFields = field_info_fields();
+  foreach ($allFields as $field) {
+    if (($field['type'] === 'text_long') || ($field['type'] === 'text_with_summary') && ($field['field_name'] !== 'comment_body')) {
+      if (key_exists('text_mistakes_reports_enabled', $field['settings'])) {
+        unset($field['settings']['text_mistakes_reports_enabled']);
+        unset($field['settings']['text_mistakes_reports_email_receiver']);
+        unset($field['settings']['text_mistakes_reports_max_text_length']);
+        unset($field['settings']['text_mistakes_reports_report_text']);
+
+        $data = $field;
+        unset($data['columns'], $data['field_name'], $data['type'], $data['locked'], $data['module'], $data['cardinality'], $data['active'], $data['deleted']);
+        unset($data['bundles']);
+        $field['data'] = $data;
+        $primary_key = array('id');
+        drupal_write_record('field_config', $field, $primary_key);
+        field_cache_clear();
+      }
+    }
+  }
+}

@@ -2,3 +2,11 @@ name = Sender of Text Mistakes Reports
 description = A module that add popup to field types "long text" and "long text and summary" and it can send reports about mistakes to admin email.
 core = 7.x
 package = My Modules
+configure = admin/config/content/text_mistakes_reports
+php = 7.0
+
+dependencies[] = smtp
+files[]=text_mistakes_reports_entity.inc
+files[]=text_mistakes_reports_entity_creator.inc
+files[]=text_mistakes_reports_entity_controller.inc
+files[]=text_mistakes_reports.test
